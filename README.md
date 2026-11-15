@@ -60,8 +60,8 @@ A production-ready, open-source desktop application for macOS and Windows built 
 
 ```bash
 # Clone the repository
-git clone https://github.com/universal-installer/github-installer.git
-cd github-installer
+git clone https://github.com/webotapp-academy/universal-github-installer.git
+cd universal-github-installer
 
 # Get Flutter dependencies
 flutter pub get
@@ -83,7 +83,7 @@ flutter run -d windows
 
 ## 📦 Releases
 
-Download pre-compiled binaries from the [GitHub Releases](https://github.com/universal-installer/github-installer/releases) page:
+Download pre-compiled binaries from the [GitHub Releases](https://github.com/webotapp-academy/universal-github-installer/releases) page:
 - **macOS**: `github-installer-macos.dmg` or portable `.zip` (Apple Silicon & Intel)
 - **Windows**: `github-installer-windows-x64-portable.zip`
 

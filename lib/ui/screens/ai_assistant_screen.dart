@@ -273,3 +273,4 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     );
   }
 }
+

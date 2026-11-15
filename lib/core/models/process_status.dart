@@ -41,3 +41,4 @@ class ProjectProcessInfo {
     this.isHealthy = true,
   }) : logs = logs ?? [];
 }
+

@@ -394,3 +394,4 @@ class _InstallScreenState extends State<InstallScreen> {
     );
   }
 }
+

@@ -78,3 +78,4 @@ class CommandApprovalDialog extends StatelessWidget {
     );
   }
 }
+

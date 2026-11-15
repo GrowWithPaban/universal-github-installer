@@ -98,3 +98,4 @@ class PythonDetector {
     return false;
   }
 }
+

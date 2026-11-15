@@ -13,3 +13,4 @@ The Universal GitHub Project Installer runs third-party code from GitHub reposit
 ## Reporting a Vulnerability
 
 If you discover a security vulnerability, please do not open a public issue. Email the core team or report via GitHub Security Advisories.
+

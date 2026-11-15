@@ -163,3 +163,4 @@ class _TerminalViewState extends State<TerminalView> {
     );
   }
 }
+

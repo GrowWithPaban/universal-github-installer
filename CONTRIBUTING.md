@@ -11,8 +11,8 @@ We welcome contributions from the community!
 
 2. Clone repository:
    ```bash
-   git clone https://github.com/universal-installer/github-installer.git
-   cd github-installer
+   git clone https://github.com/webotapp-academy/universal-github-installer.git
+   cd universal-github-installer
    ```
 
 3. Install dependencies:
@@ -44,3 +44,4 @@ We welcome contributions from the community!
 - Ensure `flutter analyze` passes with zero issues.
 - Ensure all tests pass via `flutter test`.
 - Add test coverage for new framework detection modules or service features.
+

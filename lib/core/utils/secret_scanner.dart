@@ -95,3 +95,4 @@ class SecretScanner {
     return findings;
   }
 }
+

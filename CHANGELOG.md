@@ -17,3 +17,4 @@ All notable changes to the Universal GitHub Project Installer are documented her
 - Phase 10: Multi-provider AI Development Assistant (Gemini, OpenAI, Anthropic, OpenRouter, Ollama).
 - Phase 11 & 16: GitHub Actions release automation for Windows and macOS.
 - Phase 12 & 13: Security scanner, encrypted credential vault, and interactive command authorization.
+
