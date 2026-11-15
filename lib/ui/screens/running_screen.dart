@@ -64,14 +64,20 @@ class _RunningScreenState extends State<RunningScreen> {
                 if (currentProject != null)
                   Row(
                     children: [
-                      if (!isRunning)
+                      if (!isRunning) ...[
                         ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(backgroundColor: AppTheme.successGreen),
                           icon: const Icon(Icons.play_arrow, size: 16),
                           label: const Text('Start Project'),
                           onPressed: () => projectsProvider.startProject(currentProject, processProvider),
-                        )
-                      else ...[
+                        ),
+                        const SizedBox(width: 8),
+                        OutlinedButton.icon(
+                          icon: const Icon(Icons.download_for_offline_outlined, size: 16),
+                          label: const Text('Install Dependencies'),
+                          onPressed: () => projectsProvider.reinstallDependencies(currentProject, processProvider),
+                        ),
+                      ] else ...[
                         ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(backgroundColor: AppTheme.errorRed),
                           icon: const Icon(Icons.stop, size: 16),
@@ -83,6 +89,12 @@ class _RunningScreenState extends State<RunningScreen> {
                           icon: const Icon(Icons.refresh, size: 16),
                           label: const Text('Restart'),
                           onPressed: () => projectsProvider.restartProject(currentProject, processProvider),
+                        ),
+                        const SizedBox(width: 8),
+                        OutlinedButton.icon(
+                          icon: const Icon(Icons.download_for_offline_outlined, size: 16),
+                          label: const Text('Reinstall Deps'),
+                          onPressed: () => projectsProvider.reinstallDependencies(currentProject, processProvider),
                         ),
                         const SizedBox(width: 8),
                         ElevatedButton.icon(

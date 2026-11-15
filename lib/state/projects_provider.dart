@@ -189,6 +189,16 @@ class ProjectsProvider extends ChangeNotifier {
     await startProject(project, processProvider);
   }
 
+  Future<bool> reinstallDependencies(Project project, ProcessProvider processProvider) async {
+    processProvider.addLog(project.id, 'Installing project dependencies...', false);
+    final success = await _processManager.reinstallDependencies(
+      project,
+      onLog: (line, isError) => processProvider.addLog(project.id, line, isError),
+    );
+    notifyListeners();
+    return success;
+  }
+
   Future<void> deleteProject(String projectId) async {
     await _processManager.stopProject(projectId);
     _projects.removeWhere((p) => p.id == projectId);

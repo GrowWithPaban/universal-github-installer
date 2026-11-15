@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:path/path.dart' as p;
 import '../../core/constants/supported_technologies.dart';
 import '../../core/models/process_status.dart';
 import '../../core/models/project.dart';
@@ -29,6 +30,143 @@ class ProcessManager {
 
   ProjectProcessInfo? getProcessInfo(String projectId) {
     return _processInfos[projectId];
+  }
+
+  Future<bool> _ensureDependenciesInstalled(
+    Project project,
+    void Function(String line, bool isError) logHandler,
+  ) async {
+    final localPath = project.localPath;
+    if (!Directory(localPath).existsSync()) return true;
+
+    // 1. Node.js dependencies check
+    final packageJson = File(p.join(localPath, 'package.json'));
+    if (packageJson.existsSync()) {
+      final nodeModules = Directory(p.join(localPath, 'node_modules'));
+      bool needsInstall = !nodeModules.existsSync();
+      if (!needsInstall) {
+        try {
+          needsInstall = nodeModules.listSync().isEmpty;
+        } catch (_) {
+          needsInstall = true;
+        }
+      }
+
+      if (needsInstall) {
+        final pkgMgr = project.techStack.packageManager ?? 'npm';
+        logHandler('📦 Dependencies missing in node_modules. Automatically installing with "$pkgMgr install"...', false);
+        final res = await CommandRunner.run(
+          pkgMgr,
+          ['install'],
+          workingDirectory: localPath,
+          onLine: logHandler,
+        );
+        if (!res.isSuccess) {
+          logHandler('⚠️ Warning: "$pkgMgr install" exited with code ${res.exitCode}. Output:\n${res.stderr}', true);
+        } else {
+          logHandler('✓ Dependencies installed successfully.', false);
+        }
+      }
+    }
+
+    // 2. Python dependencies check
+    final reqTxt = File(p.join(localPath, 'requirements.txt'));
+    final pyProj = File(p.join(localPath, 'pyproject.toml'));
+    if (reqTxt.existsSync() || pyProj.existsSync()) {
+      final venvDir = Directory(p.join(localPath, '.venv'));
+      if (!venvDir.existsSync()) {
+        logHandler('📦 Python virtual environment not found. Creating .venv...', false);
+        final pyCmd = Platform.isWindows ? 'python' : 'python3';
+        await CommandRunner.run(pyCmd, ['-m', 'venv', '.venv'], workingDirectory: localPath, onLine: logHandler);
+        final venvPip = Platform.isWindows
+            ? p.join(localPath, '.venv', 'Scripts', 'pip.exe')
+            : p.join(localPath, '.venv', 'bin', 'pip');
+        if (reqTxt.existsSync()) {
+          logHandler('Installing Python dependencies from requirements.txt...', false);
+          await CommandRunner.run(venvPip, ['install', '-r', 'requirements.txt'], workingDirectory: localPath, onLine: logHandler);
+        } else if (pyProj.existsSync()) {
+          logHandler('Installing Python package dependencies...', false);
+          await CommandRunner.run(venvPip, ['install', '.'], workingDirectory: localPath, onLine: logHandler);
+        }
+        logHandler('✓ Python environment configured.', false);
+      }
+    }
+
+    // 3. PHP / Composer dependencies check
+    final composerJson = File(p.join(localPath, 'composer.json'));
+    if (composerJson.existsSync()) {
+      final vendorDir = Directory(p.join(localPath, 'vendor'));
+      if (!vendorDir.existsSync()) {
+        logHandler('📦 Composer vendor folder not found. Running "composer install"...', false);
+        await CommandRunner.run(
+          'composer',
+          ['install', '--no-interaction', '--prefer-dist'],
+          workingDirectory: localPath,
+          onLine: logHandler,
+        );
+        logHandler('✓ Composer dependencies installed.', false);
+      }
+    }
+
+    return true;
+  }
+
+  Future<bool> reinstallDependencies(
+    Project project, {
+    void Function(String line, bool isError)? onLog,
+  }) async {
+    final localPath = project.localPath;
+    final log = onLog ?? (line, isError) {};
+
+    log('Starting clean dependency installation for ${project.name}...', false);
+
+    final packageJson = File(p.join(localPath, 'package.json'));
+    if (packageJson.existsSync()) {
+      final pkgMgr = project.techStack.packageManager ?? 'npm';
+      log('Executing: $pkgMgr install in $localPath', false);
+      final res = await CommandRunner.run(
+        pkgMgr,
+        ['install'],
+        workingDirectory: localPath,
+        onLine: log,
+      );
+      if (res.isSuccess) {
+        log('✓ Node dependencies installed successfully.', false);
+      } else {
+        log('✗ Dependency installation failed: ${res.stderr}', true);
+      }
+      return res.isSuccess;
+    }
+
+    final reqTxt = File(p.join(localPath, 'requirements.txt'));
+    if (reqTxt.existsSync()) {
+      final venvPip = Platform.isWindows
+          ? p.join(localPath, '.venv', 'Scripts', 'pip.exe')
+          : p.join(localPath, '.venv', 'bin', 'pip');
+      log('Executing: $venvPip install -r requirements.txt', false);
+      final res = await CommandRunner.run(
+        venvPip,
+        ['install', '-r', 'requirements.txt'],
+        workingDirectory: localPath,
+        onLine: log,
+      );
+      return res.isSuccess;
+    }
+
+    final composerJson = File(p.join(localPath, 'composer.json'));
+    if (composerJson.existsSync()) {
+      log('Executing: composer install in $localPath', false);
+      final res = await CommandRunner.run(
+        'composer',
+        ['install', '--no-interaction', '--prefer-dist'],
+        workingDirectory: localPath,
+        onLine: log,
+      );
+      return res.isSuccess;
+    }
+
+    log('No package.json, requirements.txt, or composer.json found in project directory.', false);
+    return true;
   }
 
   Future<bool> startProject(
@@ -69,6 +207,9 @@ class ProcessManager {
       _logControllers[projectId]?.add(entry);
       onLog?.call(line, isError);
     }
+
+    // Verify dependencies before starting
+    await _ensureDependenciesInstalled(project, logHandler);
 
     logHandler('Starting ${project.name} on port ${project.port}...', false);
     logHandler('Command: ${plan.startCommand} ${plan.startArgs.join(" ")}', false);

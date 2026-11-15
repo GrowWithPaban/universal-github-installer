@@ -184,13 +184,26 @@ class ProjectCard extends StatelessWidget {
                   icon: const Icon(Icons.more_vert),
                   tooltip: 'More actions',
                   onSelected: (val) {
-                    if (val == 'test') {
+                    if (val == 'reinstall') {
+                      projectsProvider.reinstallDependencies(project, processProvider);
+                      appState.setTab(NavigationTab.runningProjects, projectId: project.id);
+                    } else if (val == 'test') {
                       appState.setTab(NavigationTab.testingCenter, projectId: project.id);
                     } else if (val == 'delete') {
                       projectsProvider.deleteProject(project.id);
                     }
                   },
                   itemBuilder: (context) => [
+                    const PopupMenuItem(
+                      value: 'reinstall',
+                      child: Row(
+                        children: [
+                          Icon(Icons.download_for_offline_outlined, size: 18),
+                          SizedBox(width: 8),
+                          Text('Reinstall Dependencies'),
+                        ],
+                      ),
+                    ),
                     const PopupMenuItem(
                       value: 'test',
                       child: Row(

@@ -18,11 +18,28 @@ class CommandResult {
 }
 
 class CommandRunner {
-  static List<String> getSearchDirectories() {
+  static List<String> getSearchDirectories([String? workingDirectory]) {
     final home = Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'] ?? '';
-    final searchDirs = <String>[
+    final searchDirs = <String>[];
+
+    // Project-local binaries first (e.g., node_modules/.bin, vendor/bin, .venv)
+    if (workingDirectory != null && workingDirectory.isNotEmpty) {
+      searchDirs.add(p.join(workingDirectory, 'node_modules', '.bin'));
+      searchDirs.add(p.join(workingDirectory, 'vendor', 'bin'));
+      if (Platform.isWindows) {
+        searchDirs.add(p.join(workingDirectory, '.venv', 'Scripts'));
+      } else {
+        searchDirs.add(p.join(workingDirectory, '.venv', 'bin'));
+      }
+    }
+
+    searchDirs.addAll([
       p.join(home, '.local', 'bin'),
       p.join(home, '.local', 'node', 'bin'),
+      p.join(home, '.nvm', 'current', 'bin'),
+      p.join(home, '.fnm', 'current', 'bin'),
+      p.join(home, '.volta', 'bin'),
+      p.join(home, '.cargo', 'bin'),
       '/opt/homebrew/bin',
       '/opt/homebrew/sbin',
       '/usr/local/bin',
@@ -30,12 +47,9 @@ class CommandRunner {
       '/bin',
       '/usr/sbin',
       '/sbin',
-      p.join(home, '.cargo', 'bin'),
-      p.join(home, '.fnm', 'current', 'bin'),
-      p.join(home, '.volta', 'bin'),
-    ];
+    ]);
 
-    // Check nvm versions
+    // Check nvm versions dynamically
     final nvmDir = Directory(p.join(home, '.nvm', 'versions', 'node'));
     if (nvmDir.existsSync()) {
       try {
@@ -50,12 +64,12 @@ class CommandRunner {
     return searchDirs;
   }
 
-  static String resolveExecutable(String executable) {
+  static String resolveExecutable(String executable, {String? workingDirectory}) {
     if (executable.contains(Platform.pathSeparator)) {
       return executable;
     }
 
-    final searchDirs = getSearchDirectories();
+    final searchDirs = getSearchDirectories(workingDirectory);
 
     for (final dir in searchDirs) {
       final candidate = p.join(dir, executable);
@@ -72,14 +86,17 @@ class CommandRunner {
     return executable;
   }
 
-  static Map<String, String> getEnhancedEnvironment([Map<String, String>? extra]) {
+  static Map<String, String> getEnhancedEnvironment([
+    Map<String, String>? extra,
+    String? workingDirectory,
+  ]) {
     final separator = Platform.isWindows ? ';' : ':';
-    final searchDirs = getSearchDirectories();
+    final searchDirs = getSearchDirectories(workingDirectory);
 
     final validPaths = searchDirs.where((path) => Directory(path).existsSync()).toList();
 
     // Auto-detect node directory and place at front of PATH
-    final nodeBin = resolveExecutable('node');
+    final nodeBin = resolveExecutable('node', workingDirectory: workingDirectory);
     if (nodeBin.contains(Platform.pathSeparator)) {
       final nodeDir = p.dirname(nodeBin);
       if (!validPaths.contains(nodeDir)) {
@@ -124,8 +141,8 @@ class CommandRunner {
     void Function(String output, bool isError)? onLine,
   }) async {
     try {
-      final resolvedExecutable = resolveExecutable(executable);
-      final env = getEnhancedEnvironment(environment);
+      final resolvedExecutable = resolveExecutable(executable, workingDirectory: workingDirectory);
+      final env = getEnhancedEnvironment(environment, workingDirectory);
 
       final process = await Process.start(
         resolvedExecutable,
@@ -186,8 +203,8 @@ class CommandRunner {
     Map<String, String>? environment,
     required void Function(String line, bool isError) onLine,
   }) async {
-    final resolvedExecutable = resolveExecutable(executable);
-    final env = getEnhancedEnvironment(environment);
+    final resolvedExecutable = resolveExecutable(executable, workingDirectory: workingDirectory);
+    final env = getEnhancedEnvironment(environment, workingDirectory);
 
     final process = await Process.start(
       resolvedExecutable,
