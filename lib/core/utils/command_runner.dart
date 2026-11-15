@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:path/path.dart' as p;
 
 class CommandResult {
   final int exitCode;
@@ -17,6 +18,67 @@ class CommandResult {
 }
 
 class CommandRunner {
+  static Map<String, String> getEnhancedEnvironment([Map<String, String>? extra]) {
+    final home = Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'] ?? '';
+    final currentPath = Platform.environment['PATH'] ?? '';
+    final separator = Platform.isWindows ? ';' : ':';
+
+    final additionalPaths = [
+      p.join(home, '.local', 'bin'),
+      p.join(home, '.cargo', 'bin'),
+      p.join(home, '.nvm', 'current', 'bin'),
+      '/opt/homebrew/bin',
+      '/opt/homebrew/sbin',
+      '/usr/local/bin',
+      '/usr/bin',
+      '/bin',
+      '/usr/sbin',
+      '/sbin',
+    ];
+
+    final newPath = [
+      ...additionalPaths.where((path) => Directory(path).existsSync()),
+      currentPath,
+    ].join(separator);
+
+    return {
+      ...Platform.environment,
+      'PATH': newPath,
+      ...?extra,
+    };
+  }
+
+  static String resolveExecutable(String executable) {
+    if (executable.contains(Platform.pathSeparator)) {
+      return executable;
+    }
+
+    final home = Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'] ?? '';
+    final searchDirs = [
+      p.join(home, '.local', 'bin'),
+      '/opt/homebrew/bin',
+      '/usr/local/bin',
+      '/usr/bin',
+      '/bin',
+      p.join(home, '.cargo', 'bin'),
+    ];
+
+    for (final dir in searchDirs) {
+      final candidate = p.join(dir, executable);
+      if (File(candidate).existsSync()) {
+        return candidate;
+      }
+      if (Platform.isWindows && File('$candidate.exe').existsSync()) {
+        return '$candidate.exe';
+      }
+      if (Platform.isWindows && File('$candidate.cmd').existsSync()) {
+        return '$candidate.cmd';
+      }
+    }
+
+    return executable;
+  }
+
   static Future<CommandResult> run(
     String executable,
     List<String> arguments, {
@@ -25,12 +87,15 @@ class CommandRunner {
     void Function(String output, bool isError)? onLine,
   }) async {
     try {
+      final resolvedExecutable = resolveExecutable(executable);
+      final env = getEnhancedEnvironment(environment);
+
       final process = await Process.start(
-        executable,
+        resolvedExecutable,
         arguments,
         workingDirectory: workingDirectory,
-        environment: environment,
-        runInShell: Platform.isWindows,
+        environment: env,
+        runInShell: true,
       );
 
       final stdoutBuffer = StringBuffer();
@@ -84,12 +149,15 @@ class CommandRunner {
     Map<String, String>? environment,
     required void Function(String line, bool isError) onLine,
   }) async {
+    final resolvedExecutable = resolveExecutable(executable);
+    final env = getEnhancedEnvironment(environment);
+
     final process = await Process.start(
-      executable,
+      resolvedExecutable,
       arguments,
       workingDirectory: workingDirectory,
-      environment: environment,
-      runInShell: Platform.isWindows,
+      environment: env,
+      runInShell: true,
     );
 
     process.stdout.transform(utf8.decoder).listen((data) {
@@ -111,4 +179,3 @@ class CommandRunner {
     return process;
   }
 }
-

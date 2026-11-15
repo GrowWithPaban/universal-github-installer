@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../core/constants/supported_technologies.dart';
 import '../../core/models/installation_plan.dart';
 import '../../core/models/process_status.dart';
 import '../../core/theme/app_theme.dart';
@@ -86,6 +87,19 @@ class _InstallScreenState extends State<InstallScreen> {
               false;
         },
       );
+
+      if (project.status != ProjectState.ready) {
+        _addLog('✗ Installation encountered errors. Please resolve above issues before starting.', true);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              backgroundColor: AppTheme.errorRed,
+              content: Text('Installation failed. See terminal output for details.'),
+            ),
+          );
+        }
+        return;
+      }
 
       _addLog('✓ Project setup finished. Starting application...', false);
       await projectsProvider.startProject(project, processProvider);

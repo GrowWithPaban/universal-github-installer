@@ -188,8 +188,6 @@ class ProjectCard extends StatelessWidget {
                       appState.setTab(NavigationTab.testingCenter, projectId: project.id);
                     } else if (val == 'delete') {
                       projectsProvider.deleteProject(project.id);
-                    } else if (val == 'ai') {
-                      appState.setTab(NavigationTab.aiAssistant, projectId: project.id);
                     }
                   },
                   itemBuilder: (context) => [
@@ -200,16 +198,6 @@ class ProjectCard extends StatelessWidget {
                           Icon(Icons.fact_check, size: 18),
                           SizedBox(width: 8),
                           Text('Run Tests'),
-                        ],
-                      ),
-                    ),
-                    const PopupMenuItem(
-                      value: 'ai',
-                      child: Row(
-                        children: [
-                          Icon(Icons.auto_awesome, size: 18),
-                          SizedBox(width: 8),
-                          Text('Ask AI About Project'),
                         ],
                       ),
                     ),

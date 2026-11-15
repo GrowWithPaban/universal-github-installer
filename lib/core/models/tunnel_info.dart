@@ -6,8 +6,23 @@ enum TunnelStatus {
 }
 
 enum TunnelServiceType {
+  tailscaleFunnel,
+  tailscaleServe,
   cloudflare,
-  custom,
+  custom;
+
+  String get displayName {
+    switch (this) {
+      case TunnelServiceType.tailscaleFunnel:
+        return 'Tailscale Funnel (Public Live)';
+      case TunnelServiceType.tailscaleServe:
+        return 'Tailscale Serve (Private Mesh)';
+      case TunnelServiceType.cloudflare:
+        return 'Cloudflare Tunnel (Quick URL)';
+      case TunnelServiceType.custom:
+        return 'Custom Tunnel';
+    }
+  }
 }
 
 class TunnelInfo {
@@ -27,7 +42,7 @@ class TunnelInfo {
     required this.projectId,
     required this.projectName,
     required this.localPort,
-    this.provider = TunnelServiceType.cloudflare,
+    this.provider = TunnelServiceType.tailscaleFunnel,
     this.publicUrl,
     this.status = TunnelStatus.inactive,
     this.startedAt,
@@ -56,7 +71,7 @@ class TunnelInfo {
       localPort: (json['localPort'] as num).toInt(),
       provider: TunnelServiceType.values.firstWhere(
         (e) => e.name == json['provider'],
-        orElse: () => TunnelServiceType.cloudflare,
+        orElse: () => TunnelServiceType.tailscaleFunnel,
       ),
       publicUrl: json['publicUrl'] as String?,
       status: TunnelStatus.values.firstWhere(
@@ -71,4 +86,3 @@ class TunnelInfo {
     );
   }
 }
-

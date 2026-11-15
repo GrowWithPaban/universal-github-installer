@@ -9,7 +9,6 @@ enum NavigationTab {
   runtimeManager,
   testingCenter,
   tunnelManager,
-  aiAssistant,
   settings,
   about,
 }
@@ -42,4 +41,3 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 }
-

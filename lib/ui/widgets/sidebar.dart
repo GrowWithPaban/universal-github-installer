@@ -176,11 +176,6 @@ class Sidebar extends StatelessWidget {
                   icon: Icons.public_outlined,
                   label: 'Tunnel Manager',
                 ),
-                navItem(
-                  tab: NavigationTab.aiAssistant,
-                  icon: Icons.auto_awesome_outlined,
-                  label: 'AI Assistant',
-                ),
                 const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   child: Text(

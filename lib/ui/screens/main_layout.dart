@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import '../../state/app_state.dart';
 import '../widgets/sidebar.dart';
 import 'about_screen.dart';
-import 'ai_assistant_screen.dart';
 import 'dashboard_screen.dart';
 import 'database_screen.dart';
 import 'install_screen.dart';
@@ -39,8 +38,6 @@ class MainLayout extends StatelessWidget {
           return const TestingScreen();
         case NavigationTab.tunnelManager:
           return const TunnelScreen();
-        case NavigationTab.aiAssistant:
-          return const AiAssistantScreen();
         case NavigationTab.settings:
           return const SettingsScreen();
         case NavigationTab.about:

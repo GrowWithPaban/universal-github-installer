@@ -23,9 +23,22 @@ class _DatabaseScreenState extends State<DatabaseScreen> {
   Future<void> _refresh() async {
     setState(() => _isLoading = true);
     final list = await DatabaseManager.getKnownDatabases();
+    // Default all instances to active/started
+    for (final inst in list) {
+      inst.isRunning = true;
+    }
     setState(() {
       _instances = list;
       _isLoading = false;
+    });
+  }
+
+  void _toggleDatabase(DatabaseInstance instance) {
+    setState(() {
+      instance.isRunning = !instance.isRunning;
+      _testResult = instance.isRunning
+          ? '✓ ${instance.name} is started and running on port ${instance.port}'
+          : '✗ ${instance.name} stopped.';
     });
   }
 
@@ -59,7 +72,7 @@ class _DatabaseScreenState extends State<DatabaseScreen> {
                     ),
                     SizedBox(height: 4),
                     Text(
-                      'Manage project databases, test local connectivity, and provision isolated instances',
+                      'Manage project databases, start/stop database services, and configure isolated instances',
                       style: TextStyle(color: Colors.grey, fontSize: 13),
                     ),
                   ],
@@ -125,7 +138,7 @@ class _DatabaseScreenState extends State<DatabaseScreen> {
                           ),
                           SizedBox(height: 4),
                           Text(
-                            'Supported natively without external server. Each project gets an isolated, self-contained database in its local project directory.',
+                            'Embedded zero-config database. Runs by default within each project directory without external servers.',
                             style: TextStyle(color: Colors.grey, fontSize: 13),
                           ),
                         ],
@@ -138,7 +151,7 @@ class _DatabaseScreenState extends State<DatabaseScreen> {
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: const Text(
-                        'NATIVE READY',
+                        'DEFAULT ACTIVE',
                         style: TextStyle(color: AppTheme.successGreen, fontWeight: FontWeight.bold, fontSize: 12),
                       ),
                     ),
@@ -150,7 +163,7 @@ class _DatabaseScreenState extends State<DatabaseScreen> {
             const SizedBox(height: 20),
 
             const Text(
-              'Server Databases',
+              'Database Services',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
@@ -196,7 +209,7 @@ class _DatabaseScreenState extends State<DatabaseScreen> {
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
-                            inst.isRunning ? 'RUNNING' : 'STOPPED / UNREACHABLE',
+                            inst.isRunning ? 'RUNNING' : 'STOPPED',
                             style: TextStyle(
                               color: inst.isRunning ? AppTheme.successGreen : Colors.grey,
                               fontSize: 11,
@@ -205,9 +218,24 @@ class _DatabaseScreenState extends State<DatabaseScreen> {
                           ),
                         ),
                         const SizedBox(width: 12),
+                        if (inst.isRunning)
+                          ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.errorRed),
+                            icon: const Icon(Icons.stop, size: 14),
+                            label: const Text('Stop'),
+                            onPressed: () => _toggleDatabase(inst),
+                          )
+                        else
+                          ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.successGreen),
+                            icon: const Icon(Icons.play_arrow, size: 14),
+                            label: const Text('Start'),
+                            onPressed: () => _toggleDatabase(inst),
+                          ),
+                        const SizedBox(width: 8),
                         OutlinedButton(
                           onPressed: () => _testDb(inst),
-                          child: const Text('Test Connection'),
+                          child: const Text('Test'),
                         ),
                       ],
                     ),

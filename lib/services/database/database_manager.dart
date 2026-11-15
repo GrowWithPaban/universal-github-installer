@@ -7,7 +7,7 @@ class DatabaseInstance {
   final String name;
   final DatabaseType type;
   final int port;
-  final bool isRunning;
+  bool isRunning;
   final String host;
   final String user;
   final String databaseName;
@@ -16,7 +16,7 @@ class DatabaseInstance {
     required this.name,
     required this.type,
     required this.port,
-    required this.isRunning,
+    this.isRunning = true,
     this.host = '127.0.0.1',
     this.user = 'root',
     required this.databaseName,

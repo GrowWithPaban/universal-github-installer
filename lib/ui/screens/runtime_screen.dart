@@ -2,8 +2,12 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import '../../core/models/process_status.dart';
+import '../../core/models/runtime_info.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/utils/command_runner.dart';
 import '../../state/runtime_provider.dart';
+import '../widgets/terminal_view.dart';
 
 class RuntimeScreen extends StatefulWidget {
   const RuntimeScreen({super.key});
@@ -26,6 +30,97 @@ class _RuntimeScreenState extends State<RuntimeScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Copied: $cmd'), duration: const Duration(seconds: 2)),
     );
+  }
+
+  Future<void> _directInstall(RuntimeInfo info, String commandStr) async {
+    final logs = <LogEntry>[];
+    bool isDone = false;
+    String status = 'Installing ${info.type.displayName}...';
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: Row(
+                children: [
+                  const Icon(Icons.download, color: AppTheme.accentCyan),
+                  const SizedBox(width: 10),
+                  Text('Install ${info.type.displayName}'),
+                ],
+              ),
+              content: SizedBox(
+                width: 600,
+                height: 380,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      status,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Running command: $commandStr',
+                      style: const TextStyle(fontFamily: 'monospace', fontSize: 12, color: Colors.grey),
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: TerminalView(
+                        title: 'Live Installation Log',
+                        logs: logs,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                if (isDone)
+                  ElevatedButton(
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    child: const Text('Close & Refresh'),
+                  )
+                else
+                  const Padding(
+                    padding: EdgeInsets.all(12),
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    final parts = commandStr.split(' ');
+    final cmd = parts.first;
+    final args = parts.sublist(1);
+
+    await CommandRunner.run(
+      cmd,
+      args,
+      onLine: (line, isError) {
+        logs.add(LogEntry(
+          timestamp: DateTime.now(),
+          text: line,
+          isError: isError,
+        ));
+      },
+    );
+
+    status = 'Finished executing install script for ${info.type.displayName}';
+    isDone = true;
+
+    if (mounted) {
+      await context.read<RuntimeProvider>().refresh();
+      setState(() {});
+    }
   }
 
   @override
@@ -112,31 +207,23 @@ class _RuntimeScreenState extends State<RuntimeScreen> {
                             ],
                           ),
                         ),
-                        if (!r.isInstalled && installCmd != null) ...[
+                        if (installCmd != null) ...[
+                          ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: r.isInstalled ? AppTheme.primaryBlue.withValues(alpha: 0.15) : AppTheme.primaryBlue,
+                              foregroundColor: r.isInstalled ? AppTheme.accentCyan : Colors.white,
+                            ),
+                            icon: const Icon(Icons.download, size: 14),
+                            label: Text(r.isInstalled ? 'Reinstall' : 'Install Now'),
+                            onPressed: () => _directInstall(r, installCmd),
+                          ),
+                          const SizedBox(width: 8),
                           OutlinedButton.icon(
                             icon: const Icon(Icons.copy, size: 14),
-                            label: Text(
-                              'Install ($installCmd)',
-                              style: const TextStyle(fontSize: 11, fontFamily: 'monospace'),
-                            ),
+                            label: const Text('Copy Cmd', style: TextStyle(fontSize: 11)),
                             onPressed: () => _copyCommand(installCmd),
                           ),
-                        ] else
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: AppTheme.successGreen.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Text(
-                              'READY',
-                              style: TextStyle(
-                                color: AppTheme.successGreen,
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
+                        ],
                       ],
                     ),
                   ),

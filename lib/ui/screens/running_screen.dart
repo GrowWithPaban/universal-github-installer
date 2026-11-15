@@ -26,15 +26,14 @@ class _RunningScreenState extends State<RunningScreen> {
     final projectsProvider = context.watch<ProjectsProvider>();
     final processProvider = context.watch<ProcessProvider>();
 
-    final runningProjects = projectsProvider.projects
-        .where((p) => p.status == ProjectState.running || p.id == appState.selectedProjectId)
-        .toList();
+    final allProjects = projectsProvider.projects;
 
-    if (_selectedProjectId == null && runningProjects.isNotEmpty) {
-      _selectedProjectId = appState.selectedProjectId ?? runningProjects.first.id;
+    if (_selectedProjectId == null && allProjects.isNotEmpty) {
+      _selectedProjectId = appState.selectedProjectId ?? allProjects.first.id;
     }
 
     final currentProject = projectsProvider.getProjectById(_selectedProjectId);
+    final isRunning = currentProject?.status == ProjectState.running;
     final List<LogEntry> currentLogs = _selectedProjectId != null
         ? processProvider.getLogsForProject(_selectedProjectId!)
         : <LogEntry>[];
@@ -52,12 +51,12 @@ class _RunningScreenState extends State<RunningScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'Running Projects & Process Manager',
+                      'Process Manager & Live Console',
                       style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '${projectsProvider.runningCount} active background services and application processes',
+                      '${projectsProvider.runningCount} running • ${projectsProvider.projects.length} total projects managed',
                       style: const TextStyle(color: Colors.grey, fontSize: 13),
                     ),
                   ],
@@ -65,21 +64,36 @@ class _RunningScreenState extends State<RunningScreen> {
                 if (currentProject != null)
                   Row(
                     children: [
-                      ElevatedButton.icon(
-                        icon: const Icon(Icons.open_in_browser, size: 16),
-                        label: Text('Open ${currentProject.displayUrl}'),
-                        onPressed: () async {
-                          final uri = Uri.parse(currentProject.displayUrl);
-                          if (await canLaunchUrl(uri)) await launchUrl(uri);
-                        },
-                      ),
-                      const SizedBox(width: 10),
-                      OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(foregroundColor: AppTheme.errorRed),
-                        icon: const Icon(Icons.stop, size: 16),
-                        label: const Text('Stop Process'),
-                        onPressed: () => projectsProvider.stopProject(currentProject, processProvider),
-                      ),
+                      if (!isRunning)
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(backgroundColor: AppTheme.successGreen),
+                          icon: const Icon(Icons.play_arrow, size: 16),
+                          label: const Text('Start Project'),
+                          onPressed: () => projectsProvider.startProject(currentProject, processProvider),
+                        )
+                      else ...[
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(backgroundColor: AppTheme.errorRed),
+                          icon: const Icon(Icons.stop, size: 16),
+                          label: const Text('Stop Project'),
+                          onPressed: () => projectsProvider.stopProject(currentProject, processProvider),
+                        ),
+                        const SizedBox(width: 8),
+                        OutlinedButton.icon(
+                          icon: const Icon(Icons.refresh, size: 16),
+                          label: const Text('Restart'),
+                          onPressed: () => projectsProvider.restartProject(currentProject, processProvider),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.open_in_browser, size: 16),
+                          label: Text('Open ${currentProject.displayUrl}'),
+                          onPressed: () async {
+                            final uri = Uri.parse(currentProject.displayUrl);
+                            if (await canLaunchUrl(uri)) await launchUrl(uri);
+                          },
+                        ),
+                      ],
                     ],
                   ),
               ],
@@ -87,48 +101,49 @@ class _RunningScreenState extends State<RunningScreen> {
 
             const SizedBox(height: 18),
 
-            // Running Project Selector Tabs
-            if (runningProjects.isEmpty)
+            if (allProjects.isEmpty)
               Expanded(
                 child: Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.pause_circle_outline, size: 54, color: Colors.grey),
+                      const Icon(Icons.folder_off_outlined, size: 54, color: Colors.grey),
                       const SizedBox(height: 16),
                       const Text(
-                        'No Projects Currently Running',
+                        'No Projects Installed',
                         style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 8),
                       const Text(
-                        'Start any installed project from "My Projects" or install a new one.',
+                        'Install a project from GitHub to manage and run processes locally.',
                         style: TextStyle(color: Colors.grey, fontSize: 13),
                       ),
                       const SizedBox(height: 16),
                       ElevatedButton(
-                        onPressed: () => appState.setTab(NavigationTab.myProjects),
-                        child: const Text('Go to My Projects'),
+                        onPressed: () => appState.setTab(NavigationTab.installNew),
+                        child: const Text('Install New Project'),
                       ),
                     ],
                   ),
                 ),
               )
             else ...[
+              // Project Selector Chips
               SizedBox(
                 height: 44,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
-                  itemCount: runningProjects.length,
+                  itemCount: allProjects.length,
                   separatorBuilder: (_, _) => const SizedBox(width: 8),
                   itemBuilder: (context, index) {
-                    final p = runningProjects[index];
+                    final p = allProjects[index];
                     final isSel = p.id == _selectedProjectId;
+                    final active = p.status == ProjectState.running;
                     return ChoiceChip(
                       selected: isSel,
                       avatar: Icon(
-                        p.status == ProjectState.running ? Icons.play_circle_fill : Icons.circle,
-                        color: p.status == ProjectState.running ? AppTheme.successGreen : Colors.grey,
+                        active ? Icons.play_circle_fill : Icons.stop_circle_outlined,
+                        color: active ? AppTheme.successGreen : Colors.grey,
                         size: 14,
                       ),
                       label: Text('${p.name} (Port ${p.port})'),
@@ -140,7 +155,6 @@ class _RunningScreenState extends State<RunningScreen> {
 
               const SizedBox(height: 14),
 
-              // Active Project Info Banner
               if (currentProject != null)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -174,7 +188,6 @@ class _RunningScreenState extends State<RunningScreen> {
 
               const SizedBox(height: 14),
 
-              // Terminal View
               Expanded(
                 child: TerminalView(
                   title: 'Process Output - ${currentProject?.name ?? "Terminal"}',

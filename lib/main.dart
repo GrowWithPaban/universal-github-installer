@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'core/constants/app_constants.dart';
 import 'core/theme/app_theme.dart';
-import 'state/ai_provider.dart';
 import 'state/app_state.dart';
 import 'state/process_provider.dart';
 import 'state/projects_provider.dart';
@@ -28,7 +27,6 @@ void main() async {
         ChangeNotifierProvider(create: (_) => ProcessProvider()),
         ChangeNotifierProvider.value(value: runtimeProvider),
         ChangeNotifierProvider(create: (_) => TunnelProvider()),
-        ChangeNotifierProvider(create: (_) => AiProvider()),
       ],
       child: const GitHubInstallerApp(),
     ),

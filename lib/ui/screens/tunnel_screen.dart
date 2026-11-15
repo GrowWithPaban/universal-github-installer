@@ -17,6 +17,15 @@ class TunnelScreen extends StatefulWidget {
 
 class _TunnelScreenState extends State<TunnelScreen> {
   String? _selectedProjectId;
+  TunnelServiceType _selectedProviderType = TunnelServiceType.tailscaleFunnel;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<TunnelProvider>().checkTailscale();
+    });
+  }
 
   void _copyUrl(String url) {
     Clipboard.setData(ClipboardData(text: url));
@@ -30,6 +39,7 @@ class _TunnelScreenState extends State<TunnelScreen> {
     final appState = context.watch<AppState>();
     final projectsProvider = context.watch<ProjectsProvider>();
     final tunnelProvider = context.watch<TunnelProvider>();
+    final tailscaleNode = tunnelProvider.tailscaleNode;
 
     if (_selectedProjectId == null && projectsProvider.projects.isNotEmpty) {
       _selectedProjectId = appState.selectedProjectId ?? projectsProvider.projects.first.id;
@@ -53,12 +63,12 @@ class _TunnelScreenState extends State<TunnelScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Expose My Project (Tunnel Manager)',
+                      'Live Sharing & Tunnel Manager',
                       style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                     ),
                     SizedBox(height: 4),
                     Text(
-                      'Securely expose locally running development servers to the internet via Cloudflare Tunnels',
+                      'Expose development servers securely using Tailscale Funnel or Cloudflare',
                       style: TextStyle(color: Colors.grey, fontSize: 13),
                     ),
                   ],
@@ -83,41 +93,80 @@ class _TunnelScreenState extends State<TunnelScreen> {
               ],
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 18),
 
-            // Security Warning Callout
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppTheme.warningOrange.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppTheme.warningOrange.withValues(alpha: 0.4)),
-              ),
-              child: const Row(
-                children: [
-                  Icon(Icons.warning_amber_rounded, color: AppTheme.warningOrange, size: 28),
-                  SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Public Access Security Advisory',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppTheme.warningOrange),
-                        ),
-                        SizedBox(height: 3),
-                        Text(
-                          'Exposing a project provides a publicly accessible HTTPS link. Ensure your application has appropriate authentication or does not expose private database records or API secrets.',
-                          style: TextStyle(fontSize: 12),
-                        ),
-                      ],
+            // Tailscale Status Card
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: (tailscaleNode?.isRunning ?? false)
+                            ? AppTheme.successGreen.withValues(alpha: 0.15)
+                            : Colors.grey.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(
+                        Icons.hub,
+                        color: (tailscaleNode?.isRunning ?? false) ? AppTheme.successGreen : Colors.grey,
+                        size: 24,
+                      ),
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Text(
+                                'Tailscale Mesh & Funnel Integration',
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                              ),
+                              const SizedBox(width: 10),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: (tailscaleNode?.isRunning ?? false)
+                                      ? AppTheme.successGreen.withValues(alpha: 0.2)
+                                      : Colors.grey.withValues(alpha: 0.2),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  (tailscaleNode?.isRunning ?? false) ? 'CONNECTED' : 'DISCONNECTED',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: (tailscaleNode?.isRunning ?? false) ? AppTheme.successGreen : Colors.grey,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            tailscaleNode?.displayUrl.isNotEmpty ?? false
+                                ? 'Node: ${tailscaleNode!.hostName ?? "Local"} • MagicDNS: ${tailscaleNode.displayUrl}'
+                                : 'Tailscale is not active or installed.',
+                            style: const TextStyle(fontSize: 12, color: Colors.grey, fontFamily: 'monospace'),
+                          ),
+                        ],
+                      ),
+                    ),
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.refresh, size: 14),
+                      label: const Text('Check Status'),
+                      onPressed: () => tunnelProvider.checkTailscale(),
+                    ),
+                  ],
+                ),
               ),
             ),
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 18),
 
             if (projectsProvider.projects.isEmpty)
               Card(
@@ -147,13 +196,14 @@ class _TunnelScreenState extends State<TunnelScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'Select Project to Expose',
+                        'Project & Tunnel Configuration',
                         style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 14),
                       Row(
                         children: [
                           Expanded(
+                            flex: 3,
                             child: DropdownButton<String>(
                               isExpanded: true,
                               value: _selectedProjectId,
@@ -166,6 +216,31 @@ class _TunnelScreenState extends State<TunnelScreen> {
                               onChanged: (val) => setState(() => _selectedProjectId = val),
                             ),
                           ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            flex: 2,
+                            child: DropdownButton<TunnelServiceType>(
+                              isExpanded: true,
+                              value: _selectedProviderType,
+                              items: const [
+                                DropdownMenuItem(
+                                  value: TunnelServiceType.tailscaleFunnel,
+                                  child: Text('Tailscale Funnel (Live HTTPS)'),
+                                ),
+                                DropdownMenuItem(
+                                  value: TunnelServiceType.tailscaleServe,
+                                  child: Text('Tailscale Serve (Mesh VPN)'),
+                                ),
+                                DropdownMenuItem(
+                                  value: TunnelServiceType.cloudflare,
+                                  child: Text('Cloudflare Tunnel (Quick URL)'),
+                                ),
+                              ],
+                              onChanged: (val) {
+                                if (val != null) setState(() => _selectedProviderType = val);
+                              },
+                            ),
+                          ),
                           const SizedBox(width: 16),
                           if (activeTunnel == null || activeTunnel.status != TunnelStatus.active)
                             ElevatedButton.icon(
@@ -176,17 +251,20 @@ class _TunnelScreenState extends State<TunnelScreen> {
                                       height: 14,
                                       child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                                     )
-                                  : const Icon(Icons.rocket),
-                              label: const Text('Start Public Tunnel'),
+                                  : const Icon(Icons.rocket_launch),
+                              label: const Text('Make Project Live'),
                               onPressed: (selectedProject != null && !tunnelProvider.isLoading)
-                                  ? () => tunnelProvider.exposeProject(selectedProject)
+                                  ? () => tunnelProvider.exposeProject(
+                                        selectedProject,
+                                        provider: _selectedProviderType,
+                                      )
                                   : null,
                             )
                           else
                             ElevatedButton.icon(
                               style: ElevatedButton.styleFrom(backgroundColor: AppTheme.errorRed),
                               icon: const Icon(Icons.stop),
-                              label: const Text('Stop Tunnel'),
+                              label: const Text('Stop Live Tunnel'),
                               onPressed: () => tunnelProvider.stopTunnel(selectedProject!.id),
                             ),
                         ],
@@ -224,7 +302,7 @@ class _TunnelScreenState extends State<TunnelScreen> {
                             const Icon(Icons.check_circle, color: AppTheme.successGreen),
                             const SizedBox(width: 10),
                             Text(
-                              'Tunnel Active for ${activeTunnel.projectName}',
+                              'Live: ${activeTunnel.projectName} (${activeTunnel.provider.displayName})',
                               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                             ),
                             const Spacer(),
@@ -271,7 +349,7 @@ class _TunnelScreenState extends State<TunnelScreen> {
                               ),
                               IconButton(
                                 icon: const Icon(Icons.copy),
-                                tooltip: 'Copy Public URL',
+                                tooltip: 'Copy Live URL',
                                 onPressed: () => _copyUrl(activeTunnel.publicUrl!),
                               ),
                               IconButton(

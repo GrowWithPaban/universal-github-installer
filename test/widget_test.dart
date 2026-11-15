@@ -9,7 +9,6 @@ import 'package:github_installer/core/utils/secret_scanner.dart';
 import 'package:github_installer/services/github/github_service.dart';
 import 'package:github_installer/services/detection/tech_detector.dart';
 import 'package:github_installer/services/runtime/dependency_installer.dart';
-import 'package:github_installer/state/ai_provider.dart';
 import 'package:github_installer/state/app_state.dart';
 import 'package:github_installer/state/process_provider.dart';
 import 'package:github_installer/state/projects_provider.dart';
@@ -143,7 +142,6 @@ void main() {
             ChangeNotifierProvider(create: (_) => ProcessProvider()),
             ChangeNotifierProvider(create: (_) => RuntimeProvider()),
             ChangeNotifierProvider(create: (_) => TunnelProvider()),
-            ChangeNotifierProvider(create: (_) => AiProvider()),
           ],
           child: const GitHubInstallerApp(),
         ),
@@ -160,7 +158,6 @@ void main() {
       expect(find.text('Runtime Manager'), findsOneWidget);
       expect(find.text('Testing Center'), findsOneWidget);
       expect(find.text('Tunnel Manager'), findsOneWidget);
-      expect(find.text('AI Assistant'), findsOneWidget);
       expect(find.text('Settings'), findsOneWidget);
       expect(find.text('About'), findsOneWidget);
     });
