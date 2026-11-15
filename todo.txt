@@ -1,0 +1,554 @@
+# MASTER PROMPT: Universal GitHub Project Installer & Local Development Manager
+
+Act as a Senior Flutter Desktop Developer, DevOps Architect, Systems Engineer, and AI Software Engineer.
+
+Build a production-ready, open-source desktop application for Windows and macOS using Flutter.
+
+## 1. Product Concept
+
+The application will allow any user to install and run software directly from GitHub without manually configuring development environments.
+
+The workflow:
+
+1. User installs our desktop application.
+2. User opens the application.
+3. User pastes a GitHub repository URL.
+4. Application analyzes the repository.
+5. Automatically detects the programming language and framework.
+6. Detects required runtime, dependencies, database, and environment variables.
+7. Installs and configures everything.
+8. Runs the application locally.
+9. Allows the user to access the running application through a browser.
+10. Optionally exposes the local application through a public tunnel URL.
+
+The application must support managing multiple GitHub projects from one dashboard.
+
+## 2. Desktop Application Technology
+
+Build the application using:
+
+- Flutter
+- Dart
+- Material Design 3
+- SQLite
+- Git
+- GitHub API
+- Native Windows and macOS process management
+- Docker integration
+- Cloudflare Tunnel or another supported tunneling provider
+
+The application must work independently on Windows and macOS.
+
+## 3. GitHub Project Importer
+
+Create a prominent GitHub URL input field.
+
+Example:
+
+https://github.com/username/project-name
+
+When a user submits a URL:
+
+- Validate the repository.
+- Check repository accessibility.
+- Support public repositories.
+- Support private repositories through GitHub authentication.
+- Clone the repository.
+- Analyze the repository structure.
+- Identify its programming language.
+- Identify its framework.
+- Identify dependency files.
+- Identify database requirements.
+- Identify environment variables.
+- Identify installation instructions.
+- Identify execution commands.
+- Identify available test suites.
+
+Display the analysis before installation.
+
+## 4. Automatic Technology Detection
+
+Initially support:
+
+**PHP**
+- Core PHP
+- Laravel
+- CodeIgniter 3
+- CodeIgniter 4
+- WordPress
+- Symfony
+- Composer projects
+
+**Node.js**
+- Express
+- Next.js
+- React
+- Vue
+- Angular
+- Nuxt
+- NestJS
+- Vite
+- Other Node.js projects
+
+**Python**
+- Django
+- Flask
+- FastAPI
+- Streamlit
+- General Python projects
+
+Future support:
+- Java
+- Spring Boot
+- Ruby
+- Go
+- Rust
+- .NET
+- Docker Compose
+- Static websites
+
+Use a modular detection engine.
+
+Support monorepositories and repositories containing multiple services.
+
+## 5. Automatic Runtime Installation
+
+Detect whether the computer already has the required runtime.
+
+Examples:
+
+PHP:
+- PHP
+- Composer
+- Required extensions
+
+Node.js:
+- Node.js
+- npm
+- pnpm
+- Yarn
+
+Python:
+- Python
+- pip
+- venv
+- Poetry
+- uv
+
+Databases:
+- MySQL
+- MariaDB
+- PostgreSQL
+- MongoDB
+- SQLite
+
+If anything is missing, offer automatic installation.
+
+Important:
+- Do not overwrite existing runtime installations.
+- Support different runtime versions for different projects.
+- Prefer isolated environments.
+- Support Docker where appropriate.
+- Allow native runtime installation where Docker is unnecessary.
+- Show installation progress and errors.
+
+## 6. Automatic Project Configuration
+
+Create an intelligent installation engine.
+
+It must:
+
+- Read README documentation.
+- Analyze configuration files.
+- Identify dependency managers.
+- Identify database configurations.
+- Identify environment variables.
+- Detect available installation scripts.
+- Identify startup commands.
+
+For Laravel:
+- Install Composer packages.
+- Create .env where appropriate.
+- Generate application key.
+- Configure database.
+- Run migrations with user approval.
+- Install frontend dependencies if necessary.
+- Start Laravel.
+
+For Node.js:
+- Detect package manager.
+- Install packages.
+- Configure .env.
+- Configure database if required.
+- Run migrations where appropriate.
+- Start application.
+
+For Python:
+- Create virtual environment.
+- Install requirements.
+- Configure environment variables.
+- Configure database.
+- Start application.
+
+Do not assume all projects follow standard conventions. Generate a project-specific installation plan.
+
+Before executing arbitrary repository scripts, show the commands and obtain authorization.
+
+## 7. Database Manager
+
+Automatically detect database requirements.
+
+Features:
+- Install or configure required database services.
+- Create project-specific databases.
+- Generate database credentials.
+- Configure database connections.
+- Test database connectivity.
+- Display database status.
+- Manage multiple project databases.
+
+Prefer Docker-based isolated database services when practical.
+
+Support SQLite without requiring a separate database server.
+
+Never expose credentials in logs.
+
+## 8. Multiple Project Management
+
+This is a critical requirement.
+
+One installation of our desktop application must manage unlimited projects, subject to available system resources.
+
+Create a My Projects dashboard.
+
+Each project should have:
+
+- Project name
+- GitHub repository
+- Technology
+- Framework
+- Installation directory
+- Runtime version
+- Database type
+- Local URL
+- Current status
+- Last started time
+
+Project actions:
+
+- Install
+- Start
+- Stop
+- Restart
+- Open in browser
+- Open project folder
+- View terminal
+- View logs
+- Run tests
+- Configure environment
+- Manage database
+- Delete project
+
+Users must be able to run multiple projects simultaneously.
+
+Each project must have isolated configuration, dependencies, environment variables, ports, and database resources wherever practical.
+
+Detect port conflicts automatically.
+
+## 9. Local Application Runner
+
+Create a robust process manager.
+
+Features:
+
+- Start applications.
+- Stop applications.
+- Restart applications.
+- Monitor running processes.
+- Detect application ports.
+- Display real-time terminal logs.
+- Detect crashes.
+- Show application health.
+- Automatically identify the local URL.
+
+Examples:
+
+Laravel: localhost:8000
+Next.js: localhost:3000
+React: localhost:5173
+Django: localhost:8000
+
+Never assume fixed ports. Detect actual ports and allow users to configure them.
+
+## 10. Public IP / Tunnel Manager
+
+Create a dedicated feature called:
+
+**Expose My Project**
+
+The user should be able to expose a locally running project to the internet.
+
+Example:
+
+Local application:
+http://localhost:8000
+
+Public tunnel:
+https://example-tunnel.example.com
+
+Support:
+
+- Cloudflare Tunnel.
+- Other supported tunnel providers through an extensible architecture.
+
+Features:
+
+1. Select an installed project.
+2. Detect its local port.
+3. Start the tunnel.
+4. Generate or retrieve the public URL.
+5. Display the public URL.
+6. Copy public URL.
+7. Stop tunnel.
+8. Monitor tunnel status.
+9. Manage multiple project tunnels.
+
+The tunnel must only expose the selected application.
+
+Provide warnings about authentication, sensitive data, and public access.
+
+Do not claim to expose the user's actual router public IP unless a separate network configuration feature is implemented. A tunnel URL is a safer alternative to direct port forwarding.
+
+## 11. Automated Testing Center
+
+For each project:
+
+- Detect available test frameworks.
+- Run existing test suites.
+- Display passed tests.
+- Display failed tests.
+- Capture error logs.
+- Run basic HTTP health checks.
+- Test database connectivity.
+- Generate a test report.
+
+Support PHPUnit, Pest, Jest, Vitest, Playwright, Cypress, pytest, and unittest where detected.
+
+## 12. AI Development Assistant
+
+Add an optional AI assistant.
+
+It should understand the selected project's codebase and help developers:
+
+- Understand architecture.
+- Explain code.
+- Find bugs.
+- Analyze errors.
+- Suggest fixes.
+- Generate documentation.
+- Create tests.
+- Identify security issues.
+- Modify code after approval.
+
+Support:
+- OpenAI
+- Gemini
+- Anthropic
+- OpenRouter
+- Ollama
+
+Users must configure their own AI credentials.
+
+Do not transmit project code externally without explicit consent.
+
+## 13. Security
+
+This application executes third-party code, so security is mandatory.
+
+Implement:
+
+- Repository risk analysis.
+- Command approval.
+- Docker isolation where possible.
+- Secret detection.
+- Secure credential storage.
+- Project-specific environments.
+- Dependency vulnerability scanning.
+- Execution logs.
+- Explicit authorization for migrations and destructive operations.
+
+Do not automatically run unknown scripts without user consent.
+
+## 14. Flutter UI
+
+Design a professional desktop application inspired by Docker Desktop and VS Code.
+
+Sidebar:
+
+1. Dashboard
+2. Install New Project
+3. My Projects
+4. Running Projects
+5. Database Manager
+6. Runtime Manager
+7. Testing Center
+8. Tunnel Manager
+9. AI Assistant
+10. Settings
+11. About
+
+Dashboard:
+
+- Total installed projects.
+- Currently running projects.
+- Stopped projects.
+- Active tunnels.
+- Runtime status.
+- Recent activity.
+
+Install New Project:
+
+Large GitHub URL input.
+
+Button: Analyze Repository
+
+After analysis, show:
+
+- Project name.
+- Technology.
+- Framework.
+- Required runtime.
+- Database.
+- Required dependencies.
+- Estimated installation steps.
+
+Button: Install & Run
+
+Create beautiful installation progress screens and real-time logs.
+
+Support dark and light themes.
+
+## 15. Application Source Code Publishing
+
+The Flutter desktop application itself must be open source.
+
+Create a GitHub repository for the application.
+
+Include:
+- Flutter source code.
+- README.
+- LICENSE.
+- CONTRIBUTING.
+- SECURITY.
+- Documentation.
+- GitHub Actions workflows.
+
+Use MIT licensing unless another license is explicitly selected.
+
+## 16. Windows and macOS Release Automation
+
+Create GitHub Actions workflows to build the desktop application.
+
+On every version tag:
+
+Example: v1.0.0
+
+Automatically:
+
+1. Checkout source code.
+2. Install Flutter.
+3. Install dependencies.
+4. Run static analysis.
+5. Run tests.
+6. Build Windows.
+7. Build macOS.
+8. Package artifacts.
+9. Create a GitHub Release.
+10. Upload downloadable installers.
+
+Expected artifacts:
+
+Windows:
+- EXE installer.
+- ZIP portable package.
+
+macOS:
+- DMG installer.
+- ZIP package.
+
+Support Apple Silicon and Intel macOS where practical.
+
+Use appropriate code signing and macOS notarization when credentials are configured.
+
+The application's About page must provide:
+- Current version.
+- GitHub repository.
+- Check for updates.
+- Latest release information.
+- Download links.
+
+## 17. Technical Architecture
+
+Use clean architecture and separate the following modules:
+
+- Flutter UI.
+- GitHub integration.
+- Repository analyzer.
+- Technology detection engine.
+- Runtime installer.
+- Dependency manager.
+- Environment manager.
+- Database manager.
+- Project execution engine.
+- Process manager.
+- Tunnel manager.
+- Testing engine.
+- AI assistant.
+- GitHub release manager.
+
+Use SQLite to maintain persistent project information.
+
+Store sensitive credentials in the operating system's secure credential storage.
+
+Do not place all logic in main.dart or UI widgets.
+
+## 18. Development Instructions
+
+Develop in phases.
+
+Phase 1: Flutter desktop foundation and UI.
+
+Phase 2: GitHub import and repository analysis.
+
+Phase 3: Technology detection.
+
+Phase 4: Runtime and dependency installation.
+
+Phase 5: Database and environment management.
+
+Phase 6: Multiple project management.
+
+Phase 7: Local project execution.
+
+Phase 8: Tunnel management.
+
+Phase 9: Automated testing.
+
+Phase 10: AI assistant.
+
+Phase 11: GitHub publishing and release automation.
+
+Phase 12: Production testing and security hardening.
+
+After each phase:
+- Run the application.
+- Verify functionality.
+- Run tests.
+- Fix errors.
+- Update documentation.
+
+Do not build a non-functional UI prototype and call it complete.
+
+Start with architecture and package selection, then initialize the Flutter project and implement Phase 1.
+
+The final goal is a fully functional, open-source Windows and macOS desktop application that allows anyone to install, manage, execute, test, and expose multiple GitHub projects through one simple interface.
