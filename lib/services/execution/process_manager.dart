@@ -75,7 +75,6 @@ class ProcessManager {
 
     try {
       final env = <String, String>{
-        ...Platform.environment,
         ...project.envVariables,
         'PORT': project.port.toString(),
       };

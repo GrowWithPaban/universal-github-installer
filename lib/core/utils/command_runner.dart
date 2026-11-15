@@ -18,15 +18,11 @@ class CommandResult {
 }
 
 class CommandRunner {
-  static Map<String, String> getEnhancedEnvironment([Map<String, String>? extra]) {
+  static List<String> getSearchDirectories() {
     final home = Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'] ?? '';
-    final currentPath = Platform.environment['PATH'] ?? '';
-    final separator = Platform.isWindows ? ';' : ':';
-
-    final additionalPaths = [
+    final searchDirs = <String>[
       p.join(home, '.local', 'bin'),
-      p.join(home, '.cargo', 'bin'),
-      p.join(home, '.nvm', 'current', 'bin'),
+      p.join(home, '.local', 'node', 'bin'),
       '/opt/homebrew/bin',
       '/opt/homebrew/sbin',
       '/usr/local/bin',
@@ -34,18 +30,24 @@ class CommandRunner {
       '/bin',
       '/usr/sbin',
       '/sbin',
+      p.join(home, '.cargo', 'bin'),
+      p.join(home, '.fnm', 'current', 'bin'),
+      p.join(home, '.volta', 'bin'),
     ];
 
-    final newPath = [
-      ...additionalPaths.where((path) => Directory(path).existsSync()),
-      currentPath,
-    ].join(separator);
+    // Check nvm versions
+    final nvmDir = Directory(p.join(home, '.nvm', 'versions', 'node'));
+    if (nvmDir.existsSync()) {
+      try {
+        for (final entity in nvmDir.listSync()) {
+          if (entity is Directory) {
+            searchDirs.add(p.join(entity.path, 'bin'));
+          }
+        }
+      } catch (_) {}
+    }
 
-    return {
-      ...Platform.environment,
-      'PATH': newPath,
-      ...?extra,
-    };
+    return searchDirs;
   }
 
   static String resolveExecutable(String executable) {
@@ -53,30 +55,65 @@ class CommandRunner {
       return executable;
     }
 
-    final home = Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'] ?? '';
-    final searchDirs = [
-      p.join(home, '.local', 'bin'),
-      '/opt/homebrew/bin',
-      '/usr/local/bin',
-      '/usr/bin',
-      '/bin',
-      p.join(home, '.cargo', 'bin'),
-    ];
+    final searchDirs = getSearchDirectories();
 
     for (final dir in searchDirs) {
       final candidate = p.join(dir, executable);
       if (File(candidate).existsSync()) {
         return candidate;
       }
-      if (Platform.isWindows && File('$candidate.exe').existsSync()) {
-        return '$candidate.exe';
-      }
-      if (Platform.isWindows && File('$candidate.cmd').existsSync()) {
-        return '$candidate.cmd';
+      if (Platform.isWindows) {
+        if (File('$candidate.exe').existsSync()) return '$candidate.exe';
+        if (File('$candidate.cmd').existsSync()) return '$candidate.cmd';
+        if (File('$candidate.bat').existsSync()) return '$candidate.bat';
       }
     }
 
     return executable;
+  }
+
+  static Map<String, String> getEnhancedEnvironment([Map<String, String>? extra]) {
+    final separator = Platform.isWindows ? ';' : ':';
+    final searchDirs = getSearchDirectories();
+
+    final validPaths = searchDirs.where((path) => Directory(path).existsSync()).toList();
+
+    // Auto-detect node directory and place at front of PATH
+    final nodeBin = resolveExecutable('node');
+    if (nodeBin.contains(Platform.pathSeparator)) {
+      final nodeDir = p.dirname(nodeBin);
+      if (!validPaths.contains(nodeDir)) {
+        validPaths.insert(0, nodeDir);
+      }
+    }
+
+    // Include existing system PATH and any extra PATH
+    final currentPath = Platform.environment['PATH'] ?? '';
+    final extraPath = extra?['PATH'] ?? '';
+
+    final combined = <String>[
+      ...validPaths,
+      if (extraPath.isNotEmpty) ...extraPath.split(separator),
+      if (currentPath.isNotEmpty) ...currentPath.split(separator),
+    ];
+
+    final deduped = <String>[];
+    for (final dir in combined) {
+      final trimmed = dir.trim();
+      if (trimmed.isNotEmpty && !deduped.contains(trimmed)) {
+        deduped.add(trimmed);
+      }
+    }
+
+    final finalPath = deduped.join(separator);
+
+    final merged = <String, String>{
+      ...Platform.environment,
+      ...?extra,
+      'PATH': finalPath, // Guaranteed to have our enhanced searchDirs at the very front
+    };
+
+    return merged;
   }
 
   static Future<CommandResult> run(

@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:github_installer/core/constants/supported_technologies.dart';
 import 'package:github_installer/core/models/project.dart';
 import 'package:github_installer/core/models/tech_stack.dart';
+import 'package:github_installer/core/utils/command_runner.dart';
 import 'package:github_installer/core/utils/secret_scanner.dart';
 import 'package:github_installer/services/github/github_service.dart';
 import 'package:github_installer/services/detection/tech_detector.dart';
@@ -115,6 +116,15 @@ void main() {
   });
 
   group('Phase 12 & 13: Security Secret Scanner Tests', () {
+    test('CommandRunner correctly configures enhanced PATH and resolves node', () {
+      final env = CommandRunner.getEnhancedEnvironment({'PATH': '/usr/bin:/bin'});
+      expect(env['PATH'], isNotNull);
+      expect(env['PATH']!.contains('.local') || env['PATH']!.contains('usr'), isTrue);
+
+      final nodeResolved = CommandRunner.resolveExecutable('node');
+      expect(nodeResolved.isNotEmpty, isTrue);
+    });
+
     test('SecretScanner identifies suspicious secrets', () async {
       final tempDir = await Directory.systemTemp.createTemp('sec_test_');
       final envFile = File('${tempDir.path}/config.env');
