@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'package:path/path.dart' as p;
 import '../../core/constants/supported_technologies.dart';
 import '../../core/models/installation_plan.dart';
@@ -7,6 +9,73 @@ import '../../core/utils/command_runner.dart';
 import '../database/database_manager.dart';
 
 class DependencyInstaller {
+  static void ensureEnvAndKey(String projectPath, {int port = 8000, void Function(String, bool)? onLine}) {
+    final envFile = File(p.join(projectPath, '.env'));
+    final envExample = File(p.join(projectPath, '.env.example'));
+
+    if (!envFile.existsSync()) {
+      if (envExample.existsSync()) {
+        try {
+          envExample.copySync(envFile.path);
+          onLine?.call('✓ Created .env configuration from .env.example', false);
+        } catch (e) {
+          onLine?.call('Warning copying .env: $e', true);
+        }
+      } else {
+        envFile.writeAsStringSync('APP_NAME="Laravel Application"\nAPP_ENV=local\nAPP_KEY=\nAPP_DEBUG=true\nAPP_URL=http://localhost:$port\n');
+      }
+    }
+
+    if (envFile.existsSync()) {
+      var content = envFile.readAsStringSync();
+
+      // Ensure APP_URL has correct port
+      if (content.contains('APP_URL=')) {
+        content = content.replaceFirst(RegExp(r'APP_URL=.*'), 'APP_URL=http://localhost:$port');
+      }
+
+      // Check if APP_KEY is empty, missing, or invalid placeholder (e.g. '', "", or < 32 chars)
+      final keyMatch = RegExp(r'^APP_KEY=(.*)$', multiLine: true).firstMatch(content);
+      final rawKey = keyMatch?.group(1)?.trim() ?? '';
+      final cleanedKey = rawKey.replaceAll('"', '').replaceAll("'", '').trim();
+
+      if (cleanedKey.isEmpty || (!cleanedKey.startsWith('base64:') && cleanedKey.length < 32)) {
+        final rand = Random.secure();
+        final bytes = List<int>.generate(32, (_) => rand.nextInt(256));
+        final generatedKey = 'base64:${base64Encode(bytes)}';
+
+        if (content.contains('APP_KEY=')) {
+          content = content.replaceFirst(RegExp(r'APP_KEY=.*'), 'APP_KEY=$generatedKey');
+        } else {
+          content = 'APP_KEY=$generatedKey\n$content';
+        }
+        onLine?.call('✓ Injected valid 32-byte encryption APP_KEY into .env', false);
+      }
+
+      // Ensure SQLite DB file exists if DB_CONNECTION is sqlite or default
+      if (content.contains('DB_CONNECTION=sqlite') || !content.contains('DB_CONNECTION=')) {
+        final sqliteFile = File(p.join(projectPath, 'database', 'database.sqlite'));
+        if (!sqliteFile.existsSync()) {
+          try {
+            sqliteFile.createSync(recursive: true);
+            onLine?.call('✓ Created database/database.sqlite', false);
+          } catch (_) {}
+        }
+      }
+
+      envFile.writeAsStringSync(content);
+
+      // Clear any stale Laravel config cache so new APP_KEY takes effect immediately
+      final configCache = File(p.join(projectPath, 'bootstrap', 'cache', 'config.php'));
+      if (configCache.existsSync()) {
+        try {
+          configCache.deleteSync();
+          onLine?.call('✓ Cleared stale Laravel bootstrap/cache/config.php', false);
+        } catch (_) {}
+      }
+    }
+  }
+
   static InstallationPlan generatePlan(Project project) {
     final steps = <InstallationStep>[];
     final tech = project.techStack;
@@ -32,19 +101,19 @@ class DependencyInstaller {
             workingDirectory: path,
           ));
           steps.add(InstallationStep(
-            id: 'env_setup',
-            title: 'Setup Environment Configuration',
-            description: 'Copy .env.example to .env if not exists',
-            command: 'php',
-            args: ['-r', 'if (!file_exists(".env") && file_exists(".env.example")) copy(".env.example", ".env");'],
-            workingDirectory: path,
-          ));
-          steps.add(InstallationStep(
             id: 'artisan_key',
             title: 'Generate Application Encryption Key',
             description: 'Run php artisan key:generate',
             command: 'php',
             args: ['artisan', 'key:generate', '--force'],
+            workingDirectory: path,
+          ));
+          steps.add(InstallationStep(
+            id: 'config_clear',
+            title: 'Clear Configuration Cache',
+            description: 'Run php artisan config:clear',
+            command: 'php',
+            args: ['artisan', 'config:clear'],
             workingDirectory: path,
           ));
           if (File(p.join(path, 'package.json')).existsSync()) {
@@ -268,6 +337,11 @@ class DependencyInstaller {
     required void Function(String output, bool isError) onLine,
     required Future<bool> Function(InstallationStep step) requestApproval,
   }) async {
+    // Pre-execution environment setup (guarantee .env and APP_KEY for Laravel/PHP)
+    if (File(p.join(project.localPath, 'artisan')).existsSync() || File(p.join(project.localPath, '.env.example')).existsSync()) {
+      ensureEnvAndKey(project.localPath, port: project.port, onLine: onLine);
+    }
+
     // Also provision database if required
     await DatabaseManager.provisionDatabaseForProject(project, onLine: onLine);
 

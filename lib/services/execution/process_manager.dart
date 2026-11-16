@@ -8,6 +8,7 @@ import '../../core/models/process_status.dart';
 import '../../core/models/project.dart';
 import '../../core/utils/command_runner.dart';
 import '../../core/utils/port_detector.dart';
+import '../runtime/dependency_installer.dart';
 
 class ProcessManager {
   static final ProcessManager _instance = ProcessManager._internal();
@@ -285,16 +286,12 @@ class ProcessManager {
       startExecutable = 'php';
       startArgs = ['artisan', 'serve', '--host=127.0.0.1', '--port=${project.port}'];
 
-      // Ensure .env exists
-      final envFile = File(p.join(project.localPath, '.env'));
-      final envExample = File(p.join(project.localPath, '.env.example'));
-      if (!envFile.existsSync() && envExample.existsSync()) {
-        logHandler('📋 Generating .env configuration from .env.example...', false);
-        await envExample.copy(envFile.path);
-        await CommandRunner.run('php', ['artisan', 'key:generate', '--force'], workingDirectory: project.localPath, onLine: logHandler);
-      }
+      // Guarantee .env and valid APP_KEY encryption key
+      DependencyInstaller.ensureEnvAndKey(project.localPath, port: project.port, onLine: logHandler);
+      await CommandRunner.run('php', ['artisan', 'config:clear'], workingDirectory: project.localPath, onLine: logHandler);
+      await CommandRunner.run('php', ['artisan', 'key:generate', '--force'], workingDirectory: project.localPath, onLine: logHandler);
 
-      // Ensure SQLite DB exists if configured or if no DB exists
+      // Ensure SQLite DB file exists if database directory exists
       final sqliteFile = File(p.join(project.localPath, 'database', 'database.sqlite'));
       final dbDir = Directory(p.join(project.localPath, 'database'));
       if (dbDir.existsSync() && !sqliteFile.existsSync()) {
@@ -303,7 +300,7 @@ class ProcessManager {
         } catch (_) {}
       }
 
-      // Ensure frontend assets are built so Laravel displays full UI
+      // Ensure frontend assets are built so Laravel serves full UI
       final packageJson = File(p.join(project.localPath, 'package.json'));
       final publicBuild = Directory(p.join(project.localPath, 'public', 'build'));
       if (packageJson.existsSync() && !publicBuild.existsSync()) {
@@ -318,7 +315,7 @@ class ProcessManager {
           final pkgJson = jsonDecode(pkgContent) as Map<String, dynamic>;
           final scripts = (pkgJson['scripts'] as Map?) ?? {};
           if (scripts.containsKey('dev')) {
-            logHandler('⚡ Starting Vite companion dev server for asset compilation...', false);
+            logHandler('⚡ Starting Vite companion dev server for live asset compilation...', false);
             final viteProc = await CommandRunner.startStreaming(
               'npm',
               ['run', 'dev', '--', '--host', '127.0.0.1', '--port', '5173'],
@@ -386,6 +383,21 @@ class ProcessManager {
         ...project.envVariables,
         'PORT': project.port.toString(),
       };
+
+      if (isLaravel) {
+        final envFile = File(p.join(project.localPath, '.env'));
+        if (envFile.existsSync()) {
+          final content = envFile.readAsStringSync();
+          final keyMatch = RegExp(r'^APP_KEY=(.+)$', multiLine: true).firstMatch(content);
+          final raw = keyMatch?.group(1);
+          if (raw != null) {
+            final key = raw.replaceAll('"', '').replaceAll("'", '').trim();
+            if (key.isNotEmpty) {
+              env['APP_KEY'] = key;
+            }
+          }
+        }
+      }
 
       final process = await CommandRunner.startStreaming(
         startExecutable,
