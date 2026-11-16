@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import '../../core/constants/supported_technologies.dart';
 import '../../core/models/project.dart';
+import '../../core/utils/command_runner.dart';
 
 class DatabaseInstance {
   final String name;
@@ -24,6 +25,57 @@ class DatabaseInstance {
 }
 
 class DatabaseManager {
+  static Future<bool> ensureDatabaseExists({
+    required String databaseName,
+    String host = '127.0.0.1',
+    int port = 3306,
+    String username = 'root',
+    String password = '',
+    void Function(String output, bool isError)? onLine,
+  }) async {
+    final sanitized = databaseName.replaceAll(RegExp(r'[^a-zA-Z0-9_]'), '_');
+    if (sanitized.isEmpty) return false;
+
+    final isOpen = await testConnection(type: DatabaseType.mysql, host: host, port: port);
+    if (!isOpen) {
+      onLine?.call('MySQL server not responding on $host:$port', true);
+      return false;
+    }
+
+    // Method 1: Execute via PHP PDO (standard and zero-dependency if PHP is available)
+    try {
+      final script =
+          '\$h="$host";\$p=$port;\$u="$username";\$pw="$password";'
+          'try { '
+          '\$pdo = new PDO("mysql:host=\$h;port=\$p", \$u, \$pw); '
+          '\$pdo->exec("CREATE DATABASE IF NOT EXISTS `$sanitized` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"); '
+          'echo "DB_OK"; '
+          '} catch(Exception \$e) { echo "DB_ERR: " . \$e->getMessage(); exit(1); }';
+
+      final res = await CommandRunner.run('php', ['-r', script]);
+      if (res.isSuccess && res.stdout.contains('DB_OK')) {
+        onLine?.call('✓ Database "$sanitized" created/verified on MySQL ($host:$port)', false);
+        return true;
+      }
+    } catch (_) {}
+
+    // Method 2: Execute via mysql CLI
+    try {
+      final args = ['-h', host, '-P', port.toString(), '-u', username];
+      if (password.isNotEmpty) {
+        args.add('-p$password');
+      }
+      args.addAll(['-e', 'CREATE DATABASE IF NOT EXISTS `$sanitized` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;']);
+      final res = await CommandRunner.run('mysql', args);
+      if (res.isSuccess) {
+        onLine?.call('✓ Database "$sanitized" created/verified on MySQL via mysql CLI', false);
+        return true;
+      }
+    } catch (_) {}
+
+    return false;
+  }
+
   static Future<void> provisionDatabaseForProject(
     Project project, {
     void Function(String output, bool isError)? onLine,
@@ -51,19 +103,44 @@ class DatabaseManager {
         'DATABASE_URL': 'sqlite://$dbPath',
       };
     } else if (dbType == DatabaseType.mysql || dbType == DatabaseType.mariadb) {
-      if (onLine != null) {
-        onLine('Configuring MySQL/MariaDB database: $sanitizedName', false);
+      final mysqlUp = await testConnection(type: DatabaseType.mysql, port: 3306);
+      if (mysqlUp) {
+        if (onLine != null) {
+          onLine('Configuring and provisioning MySQL/MariaDB database: $sanitizedName...', false);
+        }
+        await ensureDatabaseExists(
+          databaseName: sanitizedName,
+          port: 3306,
+          username: 'root',
+          password: '',
+          onLine: onLine,
+        );
+        project.envVariables = {
+          ...project.envVariables,
+          'DB_CONNECTION': 'mysql',
+          'DB_HOST': '127.0.0.1',
+          'DB_PORT': '3306',
+          'DB_DATABASE': sanitizedName,
+          'DB_USERNAME': 'root',
+          'DB_PASSWORD': '',
+        };
+      } else {
+        if (onLine != null) {
+          onLine('ℹ️ MySQL not active on port 3306. Configuring isolated SQLite database for zero-config startup.', false);
+        }
+        final dbPath = p.join(project.localPath, 'database', 'database.sqlite');
+        final dbFile = File(dbPath);
+        if (!await dbFile.exists()) {
+          await dbFile.parent.create(recursive: true);
+          await dbFile.create();
+        }
+        project.envVariables = {
+          ...project.envVariables,
+          'DB_CONNECTION': 'sqlite',
+          'DB_DATABASE': dbPath,
+          'DATABASE_URL': 'sqlite://$dbPath',
+        };
       }
-      // Check if docker is available to spin up an isolated container if native is not running
-      project.envVariables = {
-        ...project.envVariables,
-        'DB_CONNECTION': 'mysql',
-        'DB_HOST': '127.0.0.1',
-        'DB_PORT': '3306',
-        'DB_DATABASE': sanitizedName,
-        'DB_USERNAME': 'root',
-        'DB_PASSWORD': '',
-      };
     } else if (dbType == DatabaseType.postgresql) {
       if (onLine != null) {
         onLine('Configuring PostgreSQL database: $sanitizedName', false);
@@ -90,32 +167,31 @@ class DatabaseManager {
 
   static Future<void> writeEnvFile(Project project) async {
     final envFile = File(p.join(project.localPath, '.env'));
-    final lines = <String>[];
-
-    Map<String, String> existing = {};
-    if (await envFile.exists()) {
-      try {
-        final content = await envFile.readAsLines();
-        for (final l in content) {
-          final trimmed = l.trim();
-          if (trimmed.isNotEmpty && !trimmed.startsWith('#') && trimmed.contains('=')) {
-            final parts = trimmed.split('=');
-            existing[parts[0].trim()] = parts.sublist(1).join('=').trim();
-          }
-        }
-      } catch (_) {}
-    }
-
-    // Merge project env variables
-    existing.addAll(project.envVariables);
-    existing['PORT'] = project.port.toString();
-
-    for (final entry in existing.entries) {
-      lines.add('${entry.key}=${entry.value}');
-    }
+    if (!await envFile.exists()) return;
 
     try {
-      await envFile.writeAsString(lines.join('\n'));
+      var content = await envFile.readAsString();
+
+      for (final entry in project.envVariables.entries) {
+        final key = entry.key;
+        final val = entry.value;
+        final regex = RegExp('^#?\\s*${RegExp.escape(key)}=.*\$', multiLine: true);
+        if (regex.hasMatch(content)) {
+          content = content.replaceFirst(regex, '$key=$val');
+        } else {
+          content += '\n$key=$val';
+        }
+      }
+
+      // Ensure PORT
+      final portRegex = RegExp(r'^#?\s*PORT=.*$', multiLine: true);
+      if (portRegex.hasMatch(content)) {
+        content = content.replaceFirst(portRegex, 'PORT=${project.port}');
+      } else {
+        content += '\nPORT=${project.port}';
+      }
+
+      await envFile.writeAsString(content);
     } catch (_) {}
   }
 

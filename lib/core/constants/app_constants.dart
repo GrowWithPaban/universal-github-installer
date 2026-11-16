@@ -1,6 +1,6 @@
 class AppConstants {
   static const String appName = 'GitHub Project Installer';
-  static const String appVersion = '1.0.6';
+  static const String appVersion = '1.0.7';
   static const String appTagline = 'Universal GitHub Project Installer & Local Development Manager';
   static const String githubRepoUrl = 'https://github.com/webotapp-academy/universal-github-installer';
   static const String releasesApiUrl = 'https://api.github.com/repos/webotapp-academy/universal-github-installer/releases/latest';

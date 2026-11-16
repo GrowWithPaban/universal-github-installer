@@ -8,6 +8,7 @@ import '../../core/models/process_status.dart';
 import '../../core/models/project.dart';
 import '../../core/utils/command_runner.dart';
 import '../../core/utils/port_detector.dart';
+import '../database/database_manager.dart';
 import '../runtime/dependency_installer.dart';
 
 class ProcessManager {
@@ -290,6 +291,28 @@ class ProcessManager {
       DependencyInstaller.ensureEnvAndKey(project.localPath, port: project.port, onLine: logHandler);
       await CommandRunner.run('php', ['artisan', 'config:clear'], workingDirectory: project.localPath, onLine: logHandler);
       await CommandRunner.run('php', ['artisan', 'key:generate', '--force'], workingDirectory: project.localPath, onLine: logHandler);
+
+      // Verify database exists and run migrations if needed
+      final envFile = File(p.join(project.localPath, '.env'));
+      if (envFile.existsSync()) {
+        try {
+          final content = envFile.readAsStringSync();
+          final dbConnMatch = RegExp(r'^DB_CONNECTION=(.*)$', multiLine: true).firstMatch(content);
+          final dbConn = dbConnMatch?.group(1)?.trim();
+          final dbNameMatch = RegExp(r'^DB_DATABASE=(.*)$', multiLine: true).firstMatch(content);
+          final dbName = dbNameMatch?.group(1)?.trim();
+
+          if (dbConn == 'mysql' && dbName != null && dbName.isNotEmpty) {
+            final dbReady = await DatabaseManager.ensureDatabaseExists(
+              databaseName: dbName,
+              onLine: logHandler,
+            );
+            if (dbReady) {
+              await CommandRunner.run('php', ['artisan', 'migrate', '--force'], workingDirectory: project.localPath, onLine: logHandler);
+            }
+          }
+        } catch (_) {}
+      }
 
       // Ensure SQLite DB file exists if database directory exists
       final sqliteFile = File(p.join(project.localPath, 'database', 'database.sqlite'));

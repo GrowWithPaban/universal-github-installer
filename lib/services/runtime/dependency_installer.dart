@@ -345,6 +345,9 @@ class DependencyInstaller {
     // Also provision database if required
     await DatabaseManager.provisionDatabaseForProject(project, onLine: onLine);
 
+    // Sync environment variables with plan so steps (like migrate) have correct DB credentials
+    plan.requiredEnvVars.addAll(project.envVariables);
+
     for (final step in plan.steps) {
       if (step.requiresUserApproval) {
         final approved = await requestApproval(step);

@@ -49,6 +49,21 @@ class CommandRunner {
       '/sbin',
     ]);
 
+    if (Platform.isMacOS) {
+      searchDirs.addAll([
+        '/Applications/XAMPP/xamppfiles/bin',
+        '/usr/local/mysql/bin',
+        '/opt/homebrew/opt/mysql/bin',
+        '/opt/homebrew/opt/mariadb/bin',
+      ]);
+    } else if (Platform.isWindows) {
+      searchDirs.addAll([
+        r'C:\xampp\mysql\bin',
+        r'C:\Program Files\MySQL\MySQL Server 8.0\bin',
+        r'C:\Program Files\MariaDB 10.5\bin',
+      ]);
+    }
+
     // Check nvm versions dynamically
     final nvmDir = Directory(p.join(home, '.nvm', 'versions', 'node'));
     if (nvmDir.existsSync()) {
