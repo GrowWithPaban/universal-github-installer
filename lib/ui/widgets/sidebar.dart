@@ -93,7 +93,7 @@ class Sidebar extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'GitHub Installer',
+                        'WebotApp GitHub Installer',
                         style: TextStyle(
                           color: textColor,
                           fontWeight: FontWeight.bold,
@@ -101,7 +101,7 @@ class Sidebar extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        'Universal Dev Manager',
+                        'Universal Local Dev Manager',
                         style: TextStyle(
                           color: Colors.white54,
                           fontSize: 11,

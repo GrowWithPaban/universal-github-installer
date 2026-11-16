@@ -26,6 +26,26 @@ class _InstallScreenState extends State<InstallScreen> {
   bool _isInstalling = false;
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final appState = context.read<AppState>();
+    if (appState.pendingInstallUrl != null) {
+      final url = appState.pendingInstallUrl!;
+      appState.clearPendingInstallUrl();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _urlController.text = url;
+          final parsed = GitHubService.parseUrl(url);
+          if (parsed != null) {
+            _nameController.text = parsed.repo;
+          }
+          _startAnalysis();
+        }
+      });
+    }
+  }
+
+  @override
   void dispose() {
     _urlController.dispose();
     _nameController.dispose();

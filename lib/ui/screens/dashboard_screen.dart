@@ -6,6 +6,7 @@ import '../../state/projects_provider.dart';
 import '../../state/runtime_provider.dart';
 import '../../state/tunnel_provider.dart';
 import '../widgets/project_card.dart';
+import '../widgets/webotapp_catalog_section.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
@@ -193,6 +194,8 @@ class DashboardScreen extends StatelessWidget {
               )
             else
               ...projectsProvider.projects.take(4).map((p) => ProjectCard(project: p)),
+
+            const WebotAppCatalogSection(),
           ],
         ),
       ),
