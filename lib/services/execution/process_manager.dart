@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:path/path.dart' as p;
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/constants/supported_technologies.dart';
 import '../../core/models/process_status.dart';
 import '../../core/models/project.dart';
@@ -32,10 +34,31 @@ class ProcessManager {
     return _processInfos[projectId];
   }
 
-  Future<bool> _ensureDependenciesInstalled(
+  Future<bool> _openBrowserForProject(
     Project project,
     void Function(String line, bool isError) logHandler,
   ) async {
+    try {
+      final uri = Uri.parse(project.displayUrl);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri);
+        logHandler('🚀 Application is live! Automatically opened ${project.displayUrl} in your default browser.', false);
+        return true;
+      } else {
+        logHandler('Note: You can open the project in your browser at: ${project.displayUrl}', false);
+        return false;
+      }
+    } catch (e) {
+      logHandler('Note: Browser opener: $e. You can access it at: ${project.displayUrl}', false);
+      return false;
+    }
+  }
+
+  Future<bool> _ensureDependenciesInstalled(
+    Project project,
+    void Function(String line, bool isError) logHandler, {
+    bool force = false,
+  }) async {
     final localPath = project.localPath;
     if (!Directory(localPath).existsSync()) return true;
 
@@ -43,18 +66,51 @@ class ProcessManager {
     final packageJson = File(p.join(localPath, 'package.json'));
     if (packageJson.existsSync()) {
       final nodeModules = Directory(p.join(localPath, 'node_modules'));
-      bool needsInstall = !nodeModules.existsSync();
+      final binDir = Directory(p.join(localPath, 'node_modules', '.bin'));
+      bool needsInstall = force || !nodeModules.existsSync() || !binDir.existsSync();
+
       if (!needsInstall) {
         try {
-          needsInstall = nodeModules.listSync().isEmpty;
+          if (nodeModules.listSync().isEmpty || binDir.listSync().isEmpty) {
+            needsInstall = true;
+          }
         } catch (_) {
           needsInstall = true;
         }
       }
 
+      // Check if specific scripts require binaries (like vite, next, nuxt)
+      if (!needsInstall) {
+        try {
+          final pkgContent = packageJson.readAsStringSync();
+          final pkgJson = jsonDecode(pkgContent) as Map<String, dynamic>;
+          final scripts = (pkgJson['scripts'] as Map?) ?? {};
+          final devScript = scripts['dev']?.toString() ?? '';
+          final startScript = scripts['start']?.toString() ?? '';
+
+          if (devScript.contains('vite') || startScript.contains('vite')) {
+            final viteBin = File(p.join(localPath, 'node_modules', '.bin', 'vite'));
+            final viteWin = File(p.join(localPath, 'node_modules', '.bin', 'vite.cmd'));
+            if (!viteBin.existsSync() && !viteWin.existsSync()) {
+              needsInstall = true;
+              logHandler('🔍 Detected "vite" in package.json scripts, but node_modules/.bin/vite does not exist.', false);
+            }
+          }
+          if (devScript.contains('next') || startScript.contains('next')) {
+            final nextBin = File(p.join(localPath, 'node_modules', '.bin', 'next'));
+            final nextWin = File(p.join(localPath, 'node_modules', '.bin', 'next.cmd'));
+            if (!nextBin.existsSync() && !nextWin.existsSync()) {
+              needsInstall = true;
+              logHandler('🔍 Detected "next" in package.json scripts, but node_modules/.bin/next does not exist.', false);
+            }
+          }
+        } catch (_) {}
+      }
+
       if (needsInstall) {
         final pkgMgr = project.techStack.packageManager ?? 'npm';
-        logHandler('📦 Dependencies missing in node_modules. Automatically installing with "$pkgMgr install"...', false);
+        logHandler('📦 Dependencies missing or incomplete in node_modules.', false);
+        logHandler('>>> Executing automated dependency installation: $pkgMgr install...', false);
         final res = await CommandRunner.run(
           pkgMgr,
           ['install'],
@@ -74,7 +130,7 @@ class ProcessManager {
     final pyProj = File(p.join(localPath, 'pyproject.toml'));
     if (reqTxt.existsSync() || pyProj.existsSync()) {
       final venvDir = Directory(p.join(localPath, '.venv'));
-      if (!venvDir.existsSync()) {
+      if (force || !venvDir.existsSync()) {
         logHandler('📦 Python virtual environment not found. Creating .venv...', false);
         final pyCmd = Platform.isWindows ? 'python' : 'python3';
         await CommandRunner.run(pyCmd, ['-m', 'venv', '.venv'], workingDirectory: localPath, onLine: logHandler);
@@ -96,7 +152,7 @@ class ProcessManager {
     final composerJson = File(p.join(localPath, 'composer.json'));
     if (composerJson.existsSync()) {
       final vendorDir = Directory(p.join(localPath, 'vendor'));
-      if (!vendorDir.existsSync()) {
+      if (force || !vendorDir.existsSync()) {
         logHandler('📦 Composer vendor folder not found. Running "composer install"...', false);
         await CommandRunner.run(
           'composer',
@@ -172,6 +228,7 @@ class ProcessManager {
   Future<bool> startProject(
     Project project, {
     void Function(String line, bool isError)? onLog,
+    bool autoOpenBrowser = true,
   }) async {
     final projectId = project.id;
     if (_runningProcesses.containsKey(projectId)) {
@@ -211,8 +268,54 @@ class ProcessManager {
     // Verify dependencies before starting
     await _ensureDependenciesInstalled(project, logHandler);
 
+    // Adjust startArgs if Vite to bind localhost IPv4
+    final startArgs = List<String>.from(plan.startArgs);
+    if (project.techStack.framework == FrameworkType.vite && !startArgs.contains('--host')) {
+      final dashDashIdx = startArgs.indexOf('--');
+      if (dashDashIdx >= 0) {
+        startArgs.insert(dashDashIdx + 1, '--host');
+        startArgs.insert(dashDashIdx + 2, '127.0.0.1');
+      } else {
+        startArgs.addAll(['--', '--host', '127.0.0.1']);
+      }
+    }
+
     logHandler('Starting ${project.name} on port ${project.port}...', false);
-    logHandler('Command: ${plan.startCommand} ${plan.startArgs.join(" ")}', false);
+    logHandler('Command: ${plan.startCommand} ${startArgs.join(" ")}', false);
+
+    bool browserOpened = false;
+    bool hasAutoRepaired = false;
+    bool encounteredCommandNotFound = false;
+
+    void processLineHandler(String line, bool isError) {
+      logHandler(line, isError);
+
+      // Check for missing command error patterns
+      if (line.contains('command not found') ||
+          line.contains('sh: vite:') ||
+          line.contains('No such file or directory') ||
+          line.contains('Cannot find module')) {
+        encounteredCommandNotFound = true;
+      }
+
+      // Dynamically detect server bound port from terminal output
+      // e.g. "Local: http://localhost:5173/" or "http://127.0.0.1:5174"
+      if (autoOpenBrowser && !browserOpened) {
+        final urlMatch = RegExp(r'https?:\/\/(?:localhost|127\.0\.0\.1):(\d+)').firstMatch(line);
+        if (urlMatch != null) {
+          final detectedPort = int.tryParse(urlMatch.group(1) ?? '');
+          if (detectedPort != null) {
+            if (detectedPort != project.port) {
+              project.port = detectedPort;
+              project.localUrl = 'http://localhost:$detectedPort';
+              logHandler('Detected server running on port $detectedPort. Updated project URL.', false);
+            }
+            browserOpened = true;
+            _openBrowserForProject(project, logHandler);
+          }
+        }
+      }
+    }
 
     try {
       final env = <String, String>{
@@ -222,10 +325,10 @@ class ProcessManager {
 
       final process = await CommandRunner.startStreaming(
         plan.startCommand,
-        plan.startArgs,
+        startArgs,
         workingDirectory: project.localPath,
         environment: env,
-        onLine: (line, isError) => logHandler(line, isError),
+        onLine: (line, isError) => processLineHandler(line, isError),
       );
 
       _runningProcesses[projectId] = process;
@@ -240,18 +343,58 @@ class ProcessManager {
       project.lastStartedAt = DateTime.now();
 
       // Listen for process exit or crash
-      process.exitCode.then((code) {
+      process.exitCode.then((code) async {
         logHandler('Process exited with code $code', code != 0);
         _runningProcesses.remove(projectId);
         _processInfos.remove(projectId);
-        project.status = code == 0 ? ProjectState.ready : ProjectState.error;
+
+        if (code != 0) {
+          project.status = ProjectState.error;
+
+          // AUTOMATIC SELF-HEALING REPAIR
+          if (!hasAutoRepaired && (code == 127 || encounteredCommandNotFound)) {
+            hasAutoRepaired = true;
+            logHandler('⚠️ Self-Healing Triggered: Command execution error detected (Exit code $code).', true);
+            logHandler('🔧 Applying automatic fix: Executing clean package installation...', false);
+            final installSuccess = await reinstallDependencies(project, onLog: logHandler);
+            if (installSuccess) {
+              logHandler('✓ Fix applied successfully. Restarting ${project.name} now...', false);
+              await startProject(project, onLog: onLog, autoOpenBrowser: autoOpenBrowser);
+            } else {
+              logHandler('❌ Automatic repair could not resolve dependencies. Please check package.json.', true);
+            }
+          }
+        } else {
+          project.status = ProjectState.ready;
+        }
       });
 
-      // Poll port to confirm health
-      final portBound = await PortDetector.waitForPort(project.port, timeout: const Duration(seconds: 10));
+      // Poll port & verify health
+      final portBound = await PortDetector.waitForPort(project.port, timeout: const Duration(seconds: 12));
       if (portBound) {
         logHandler('✓ Application is healthy and listening on http://localhost:${project.port}', false);
         _processInfos[projectId]?.isHealthy = true;
+
+        if (autoOpenBrowser && !browserOpened) {
+          browserOpened = true;
+          await _openBrowserForProject(project, logHandler);
+        }
+      } else {
+        // Server did NOT respond within 12 seconds
+        logHandler('⚠️ Server did not bind to port ${project.port} within 12 seconds.', true);
+        if (!hasAutoRepaired && isRunning(projectId)) {
+          hasAutoRepaired = true;
+          logHandler('🔧 Checking if another port was chosen or port is busy...', false);
+          final newPort = await PortDetector.findAvailablePort(startPort: project.port + 1);
+          if (newPort != project.port) {
+            logHandler('Switching to free port $newPort and restarting application...', false);
+            project.port = newPort;
+            project.localUrl = 'http://localhost:$newPort';
+            await stopProject(projectId);
+            await Future.delayed(const Duration(milliseconds: 500));
+            await startProject(project, onLog: onLog, autoOpenBrowser: autoOpenBrowser);
+          }
+        }
       }
 
       return true;

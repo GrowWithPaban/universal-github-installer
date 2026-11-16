@@ -111,7 +111,11 @@ class DependencyInstaller {
         // Determine start command
         if (tech.detectedScripts.contains('dev')) {
           startCmd = pkgMgr;
-          startArgs = ['run', 'dev', '--', '--port', '$port'];
+          if (tech.framework == FrameworkType.vite) {
+            startArgs = ['run', 'dev', '--', '--host', '127.0.0.1', '--port', '$port'];
+          } else {
+            startArgs = ['run', 'dev', '--', '--port', '$port'];
+          }
         } else if (tech.detectedScripts.contains('start')) {
           startCmd = pkgMgr;
           startArgs = ['start'];
