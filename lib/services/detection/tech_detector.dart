@@ -25,7 +25,59 @@ class TechDetector {
         files.contains('docker-compose.yaml') ||
         files.contains('compose.yaml');
 
-    // 1. Check Node.js
+    // Priority 1: Check PHP first if artisan or composer.json is present (Laravel, Symfony, etc.)
+    final isPhpPrimary = files.contains('artisan') ||
+        files.contains('composer.json') ||
+        files.contains('wp-config.php') ||
+        files.contains('spark');
+
+    if (isPhpPrimary) {
+      final phpResult = await PhpDetector.detect(dirPath, files);
+      if (phpResult != null) {
+        if (hasDockerCompose) {
+          return TechStack(
+            language: phpResult.language,
+            framework: phpResult.framework,
+            databaseRequirement: phpResult.databaseRequirement,
+            packageManager: phpResult.packageManager,
+            dependencyFiles: phpResult.dependencyFiles,
+            detectedScripts: phpResult.detectedScripts,
+            recommendedPort: phpResult.recommendedPort,
+            detectedTestFrameworks: phpResult.detectedTestFrameworks,
+            hasDockerCompose: true,
+          );
+        }
+        return phpResult;
+      }
+    }
+
+    // Priority 2: Check Python first if manage.py or requirements.txt is present
+    final isPythonPrimary = files.contains('manage.py') ||
+        files.contains('Pipfile') ||
+        files.contains('poetry.lock') ||
+        files.contains('requirements.txt');
+
+    if (isPythonPrimary) {
+      final pythonResult = await PythonDetector.detect(dirPath, files);
+      if (pythonResult != null) {
+        if (hasDockerCompose) {
+          return TechStack(
+            language: pythonResult.language,
+            framework: pythonResult.framework,
+            databaseRequirement: pythonResult.databaseRequirement,
+            packageManager: pythonResult.packageManager,
+            dependencyFiles: pythonResult.dependencyFiles,
+            detectedScripts: pythonResult.detectedScripts,
+            recommendedPort: pythonResult.recommendedPort,
+            detectedTestFrameworks: pythonResult.detectedTestFrameworks,
+            hasDockerCompose: true,
+          );
+        }
+        return pythonResult;
+      }
+    }
+
+    // Priority 3: Check Node.js
     final nodeResult = await NodeDetector.detect(dirPath, files);
     if (nodeResult != null) {
       if (hasDockerCompose) {
@@ -44,7 +96,7 @@ class TechDetector {
       return nodeResult;
     }
 
-    // 2. Check PHP
+    // 4. Fallback Check PHP
     final phpResult = await PhpDetector.detect(dirPath, files);
     if (phpResult != null) {
       if (hasDockerCompose) {

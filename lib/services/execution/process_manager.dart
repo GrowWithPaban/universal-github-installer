@@ -15,6 +15,7 @@ class ProcessManager {
   ProcessManager._internal();
 
   final Map<String, Process> _runningProcesses = {};
+  final Map<String, Process> _companionProcesses = {};
   final Map<String, ProjectProcessInfo> _processInfos = {};
   final Map<String, StreamController<LogEntry>> _logControllers = {};
 
@@ -268,9 +269,67 @@ class ProcessManager {
     // Verify dependencies before starting
     await _ensureDependenciesInstalled(project, logHandler);
 
-    // Adjust startArgs if Vite to bind localhost IPv4
-    final startArgs = List<String>.from(plan.startArgs);
-    if (project.techStack.framework == FrameworkType.vite && !startArgs.contains('--host')) {
+    final isLaravel = File(p.join(project.localPath, 'artisan')).existsSync();
+
+    // Auto-detect and fix Laravel configuration
+    String startExecutable = plan.startCommand;
+    List<String> startArgs = List<String>.from(plan.startArgs);
+
+    if (isLaravel) {
+      if (project.port == 5173 || plan.startCommand == 'npm') {
+        final newPort = await PortDetector.findAvailablePort(startPort: 8000);
+        project.port = newPort;
+        project.localUrl = 'http://localhost:$newPort';
+      }
+
+      startExecutable = 'php';
+      startArgs = ['artisan', 'serve', '--host=127.0.0.1', '--port=${project.port}'];
+
+      // Ensure .env exists
+      final envFile = File(p.join(project.localPath, '.env'));
+      final envExample = File(p.join(project.localPath, '.env.example'));
+      if (!envFile.existsSync() && envExample.existsSync()) {
+        logHandler('📋 Generating .env configuration from .env.example...', false);
+        await envExample.copy(envFile.path);
+        await CommandRunner.run('php', ['artisan', 'key:generate', '--force'], workingDirectory: project.localPath, onLine: logHandler);
+      }
+
+      // Ensure SQLite DB exists if configured or if no DB exists
+      final sqliteFile = File(p.join(project.localPath, 'database', 'database.sqlite'));
+      final dbDir = Directory(p.join(project.localPath, 'database'));
+      if (dbDir.existsSync() && !sqliteFile.existsSync()) {
+        try {
+          sqliteFile.createSync(recursive: true);
+        } catch (_) {}
+      }
+
+      // Ensure frontend assets are built so Laravel displays full UI
+      final packageJson = File(p.join(project.localPath, 'package.json'));
+      final publicBuild = Directory(p.join(project.localPath, 'public', 'build'));
+      if (packageJson.existsSync() && !publicBuild.existsSync()) {
+        logHandler('🔨 Compiling frontend assets (npm run build)...', false);
+        await CommandRunner.run('npm', ['run', 'build'], workingDirectory: project.localPath, onLine: logHandler);
+      }
+
+      // Start Vite dev server as a companion process if dev script exists
+      if (packageJson.existsSync() && !_companionProcesses.containsKey(projectId)) {
+        try {
+          final pkgContent = packageJson.readAsStringSync();
+          final pkgJson = jsonDecode(pkgContent) as Map<String, dynamic>;
+          final scripts = (pkgJson['scripts'] as Map?) ?? {};
+          if (scripts.containsKey('dev')) {
+            logHandler('⚡ Starting Vite companion dev server for asset compilation...', false);
+            final viteProc = await CommandRunner.startStreaming(
+              'npm',
+              ['run', 'dev', '--', '--host', '127.0.0.1', '--port', '5173'],
+              workingDirectory: project.localPath,
+              onLine: (line, isErr) => logHandler('[Vite] $line', isErr),
+            );
+            _companionProcesses[projectId] = viteProc;
+          }
+        } catch (_) {}
+      }
+    } else if (project.techStack.framework == FrameworkType.vite && !startArgs.contains('--host')) {
       final dashDashIdx = startArgs.indexOf('--');
       if (dashDashIdx >= 0) {
         startArgs.insert(dashDashIdx + 1, '--host');
@@ -281,7 +340,7 @@ class ProcessManager {
     }
 
     logHandler('Starting ${project.name} on port ${project.port}...', false);
-    logHandler('Command: ${plan.startCommand} ${startArgs.join(" ")}', false);
+    logHandler('Command: $startExecutable ${startArgs.join(" ")}', false);
 
     bool browserOpened = false;
     bool hasAutoRepaired = false;
@@ -299,19 +358,24 @@ class ProcessManager {
       }
 
       // Dynamically detect server bound port from terminal output
-      // e.g. "Local: http://localhost:5173/" or "http://127.0.0.1:5174"
+      // e.g. "Local: http://localhost:5173/" or "http://127.0.0.1:8000"
       if (autoOpenBrowser && !browserOpened) {
         final urlMatch = RegExp(r'https?:\/\/(?:localhost|127\.0\.0\.1):(\d+)').firstMatch(line);
         if (urlMatch != null) {
           final detectedPort = int.tryParse(urlMatch.group(1) ?? '');
           if (detectedPort != null) {
-            if (detectedPort != project.port) {
-              project.port = detectedPort;
-              project.localUrl = 'http://localhost:$detectedPort';
-              logHandler('Detected server running on port $detectedPort. Updated project URL.', false);
+            // For Laravel, ignore port 5173 (that is just Vite asset compiler)
+            if (isLaravel && detectedPort == 5173) {
+              // Wait for Laravel server on port 8000
+            } else {
+              if (detectedPort != project.port) {
+                project.port = detectedPort;
+                project.localUrl = 'http://localhost:$detectedPort';
+                logHandler('Detected server running on port $detectedPort. Updated project URL.', false);
+              }
+              browserOpened = true;
+              _openBrowserForProject(project, logHandler);
             }
-            browserOpened = true;
-            _openBrowserForProject(project, logHandler);
           }
         }
       }
@@ -324,7 +388,7 @@ class ProcessManager {
       };
 
       final process = await CommandRunner.startStreaming(
-        plan.startCommand,
+        startExecutable,
         startArgs,
         workingDirectory: project.localPath,
         environment: env,
@@ -407,6 +471,13 @@ class ProcessManager {
   }
 
   Future<bool> stopProject(String projectId) async {
+    final companion = _companionProcesses.remove(projectId);
+    if (companion != null) {
+      try {
+        companion.kill(ProcessSignal.sigterm);
+      } catch (_) {}
+    }
+
     final process = _runningProcesses[projectId];
     if (process == null) return true;
 
@@ -433,7 +504,14 @@ class ProcessManager {
   }
 
   void stopAll() {
-    for (final pid in _runningProcesses.keys) {
+    for (final companion in _companionProcesses.values) {
+      try {
+        companion.kill(ProcessSignal.sigterm);
+      } catch (_) {}
+    }
+    _companionProcesses.clear();
+
+    for (final pid in _runningProcesses.keys.toList()) {
       stopProject(pid);
     }
   }

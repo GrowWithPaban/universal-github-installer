@@ -49,11 +49,19 @@ class DependencyInstaller {
           ));
           if (File(p.join(path, 'package.json')).existsSync()) {
             steps.add(InstallationStep(
-              id: 'npm_build',
-              title: 'Build Frontend Assets',
-              description: 'Install npm packages and compile assets',
+              id: 'npm_install',
+              title: 'Install Frontend Dependencies',
+              description: 'Install npm packages for frontend assets',
               command: 'npm',
               args: ['install'],
+              workingDirectory: path,
+            ));
+            steps.add(InstallationStep(
+              id: 'npm_build',
+              title: 'Build Production Frontend Assets',
+              description: 'Run npm run build to compile Vite / Tailwind assets',
+              command: 'npm',
+              args: ['run', 'build'],
               workingDirectory: path,
             ));
           }
