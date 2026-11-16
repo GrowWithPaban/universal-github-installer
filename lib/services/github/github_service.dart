@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:archive/archive.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -146,10 +147,90 @@ class GitHubService {
     );
 
     if (!result.isSuccess && !await directory.exists()) {
-      throw Exception('Failed to clone repository: ${result.stderr}');
+      // Automatic fallback: Download and extract GitHub repository ZIP directly without Git
+      await _downloadAndExtractZip(
+        parsed.owner,
+        parsed.repo,
+        targetDir,
+        token: token,
+        onProgress: onProgress,
+      );
     }
 
     return targetDir;
+  }
+
+  static Future<void> _downloadAndExtractZip(
+    String owner,
+    String repo,
+    String targetDir, {
+    String? token,
+    void Function(String output, bool isError)? onProgress,
+  }) async {
+    onProgress?.call('📦 Git command not available. Downloading repository ZIP archive from GitHub...', false);
+
+    final client = http.Client();
+    final headers = <String, String>{
+      'User-Agent': 'WebotApp-Universal-GitHub-Installer',
+      if (token != null && token.isNotEmpty) 'Authorization': 'token $token',
+    };
+
+    final candidateUrls = [
+      'https://github.com/$owner/$repo/archive/refs/heads/main.zip',
+      'https://github.com/$owner/$repo/archive/refs/heads/master.zip',
+      'https://api.github.com/repos/$owner/$repo/zipball',
+    ];
+
+    http.Response? response;
+    for (final candidate in candidateUrls) {
+      try {
+        final res = await client.get(Uri.parse(candidate), headers: headers);
+        if (res.statusCode == 200 && res.bodyBytes.isNotEmpty) {
+          response = res;
+          break;
+        }
+      } catch (_) {}
+    }
+
+    if (response == null || response.statusCode != 200) {
+      throw Exception('Could not clone via Git and could not download ZIP archive from GitHub. Please install Git or check your network connection.');
+    }
+
+    onProgress?.call('⚡ Extracting project files into $targetDir...', false);
+
+    final archive = ZipDecoder().decodeBytes(response.bodyBytes);
+    final targetDirObj = Directory(targetDir);
+    if (!await targetDirObj.exists()) {
+      await targetDirObj.create(recursive: true);
+    }
+
+    String? rootPrefix;
+    if (archive.isNotEmpty) {
+      final first = archive.first.name;
+      final slashIdx = first.indexOf('/');
+      if (slashIdx != -1) {
+        rootPrefix = first.substring(0, slashIdx + 1);
+      }
+    }
+
+    for (final file in archive) {
+      var relativePath = file.name;
+      if (rootPrefix != null && relativePath.startsWith(rootPrefix)) {
+        relativePath = relativePath.substring(rootPrefix.length);
+      }
+      if (relativePath.isEmpty) continue;
+
+      final filePath = p.join(targetDir, relativePath);
+      if (file.isFile) {
+        final outFile = File(filePath);
+        await outFile.parent.create(recursive: true);
+        await outFile.writeAsBytes(file.content as List<int>);
+      } else {
+        await Directory(filePath).create(recursive: true);
+      }
+    }
+
+    onProgress?.call('✓ Repository downloaded and unpacked successfully without Git!', false);
   }
 }
 

@@ -1,7 +1,7 @@
 name: github_installer
-description: "Universal GitHub Project Installer & Local Development Manager for Windows and macOS"
+description: "WebotApp Universal GitHub Project Installer & Local Development Manager for Windows and macOS"
 publish_to: 'none'
-version: 1.0.8+9
+version: 1.0.9+10
 
 environment:
   sdk: ^3.14.0
@@ -17,6 +17,7 @@ dependencies:
   uuid: ^4.5.1
   intl: ^0.19.0
   url_launcher: ^6.3.1
+  archive: ^4.7.1
 
 dev_dependencies:
   flutter_test:

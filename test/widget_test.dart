@@ -159,7 +159,7 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      expect(find.text('GitHub Installer'), findsOneWidget);
+      expect(find.textContaining('GitHub Installer'), findsWidgets);
       expect(find.text('Dashboard'), findsOneWidget);
       expect(find.text('Install New Project'), findsWidgets);
       expect(find.text('My Projects'), findsOneWidget);

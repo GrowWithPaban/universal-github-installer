@@ -57,7 +57,25 @@ class CommandRunner {
         '/opt/homebrew/opt/mariadb/bin',
       ]);
     } else if (Platform.isWindows) {
+      final localAppData = Platform.environment['LOCALAPPDATA'] ?? '';
+      final programFiles = Platform.environment['ProgramFiles'] ?? r'C:\Program Files';
+      final programFilesX86 = Platform.environment['ProgramFiles(x86)'] ?? r'C:\Program Files (x86)';
+      final userProfile = Platform.environment['USERPROFILE'] ?? home;
+
       searchDirs.addAll([
+        p.join(programFiles, 'Git', 'cmd'),
+        p.join(programFiles, 'Git', 'bin'),
+        p.join(programFilesX86, 'Git', 'cmd'),
+        p.join(programFilesX86, 'Git', 'bin'),
+        p.join(localAppData, 'Programs', 'Git', 'cmd'),
+        p.join(localAppData, 'Programs', 'Git', 'bin'),
+        p.join(userProfile, 'scoop', 'shims'),
+        r'C:\ProgramData\chocolatey\bin',
+        p.join(userProfile, 'AppData', 'Local', 'GitHubDesktop', 'bin'),
+        r'C:\PortableGit\cmd',
+        r'C:\PortableGit\bin',
+        r'C:\Git\cmd',
+        r'C:\Git\bin',
         r'C:\xampp\mysql\bin',
         r'C:\Program Files\MySQL\MySQL Server 8.0\bin',
         r'C:\Program Files\MariaDB 10.5\bin',
