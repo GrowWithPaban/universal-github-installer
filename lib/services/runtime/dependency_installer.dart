@@ -144,6 +144,18 @@ class DependencyInstaller {
             isDestructive: true,
             requiresUserApproval: true,
           ));
+          final seederFile = File(p.join(path, 'database', 'seeders', 'DatabaseSeeder.php'));
+          final legacySeeder = File(p.join(path, 'database', 'seeds', 'DatabaseSeeder.php'));
+          if (seederFile.existsSync() || legacySeeder.existsSync()) {
+            steps.add(InstallationStep(
+              id: 'artisan_seed',
+              title: 'Seed Database with Initial Users & Demo Data',
+              description: 'Run php artisan db:seed --force to populate default accounts',
+              command: 'php',
+              args: ['artisan', 'db:seed', '--force'],
+              workingDirectory: path,
+            ));
+          }
           startCmd = 'php';
           startArgs = ['artisan', 'serve', '--host=127.0.0.1', '--port=$port'];
         } else {

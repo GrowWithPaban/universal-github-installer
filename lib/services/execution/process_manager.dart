@@ -309,6 +309,21 @@ class ProcessManager {
             );
             if (dbReady) {
               await CommandRunner.run('php', ['artisan', 'migrate', '--force'], workingDirectory: project.localPath, onLine: logHandler);
+              final seeder = File(p.join(project.localPath, 'database', 'seeders', 'DatabaseSeeder.php'));
+              final legacySeeder = File(p.join(project.localPath, 'database', 'seeds', 'DatabaseSeeder.php'));
+              if (seeder.existsSync() || legacySeeder.existsSync()) {
+                await CommandRunner.run('php', ['artisan', 'db:seed', '--force'], workingDirectory: project.localPath, onLine: logHandler);
+              }
+            }
+          } else if (dbConn == 'sqlite' || dbConn == null || dbConn.isEmpty) {
+            final sqliteFile = File(p.join(project.localPath, 'database', 'database.sqlite'));
+            if (sqliteFile.existsSync() && sqliteFile.lengthSync() == 0) {
+              await CommandRunner.run('php', ['artisan', 'migrate', '--force'], workingDirectory: project.localPath, onLine: logHandler);
+              final seeder = File(p.join(project.localPath, 'database', 'seeders', 'DatabaseSeeder.php'));
+              final legacySeeder = File(p.join(project.localPath, 'database', 'seeds', 'DatabaseSeeder.php'));
+              if (seeder.existsSync() || legacySeeder.existsSync()) {
+                await CommandRunner.run('php', ['artisan', 'db:seed', '--force'], workingDirectory: project.localPath, onLine: logHandler);
+              }
             }
           }
         } catch (_) {}
